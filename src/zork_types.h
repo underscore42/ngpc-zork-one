@@ -1,15 +1,6 @@
 /* zork_types.h - Zork Neo for NGPC
- * Core types, constants, world model
- * MIT License - game content derived from Zork I (c) Infocom, MIT-licensed Nov 2025
- * NGPC port by underscore42 / Studio So Not Kansai
- *
- * cc900 C89 rules:
- *   - no volatile u16* stores
- *   - no signed multiply/divide
- *   - no declarations after statements
- *   - no unsized arrays []
- *   - no const on arrays passed to functions expecting non-const
- *   - sprite tile IDs 0-255 only
+ * Flat arrays only - no structs with pointer members (cc900 unsafe)
+ * cc900 C89: no const arrays, no structs with pointers, no signed mul/div
  */
 #ifndef ZORK_TYPES_H
 #define ZORK_TYPES_H
@@ -18,60 +9,57 @@
 #include "library.h"
 
 /* ---- Screen geometry ---- */
-#define SCR_W           20      /* tiles wide */
-#define SCR_H           19      /* tiles tall */
-#define TEXT_ROWS       14      /* rows 0-13: scrolling output */
-#define ROW_DIVIDER     14      /* row 14: --- separator */
-#define ROW_VERB        15      /* row 15: verb selector */
-#define ROW_NOUN        16      /* row 16: noun selector */
-#define ROW_CMD         17      /* row 17: assembled command */
-#define ROW_STATUS      18      /* row 18: score / moves */
+#define SCR_W           20
+#define SCR_H           19
+#define TEXT_ROWS       14
+#define ROW_DIVIDER     14
+#define ROW_VERB        15
+#define ROW_NOUN        16
+#define ROW_CMD         17
+#define ROW_STATUS      18
 
 /* ---- Palettes ---- */
-#define PAL_NORMAL      0       /* white text */
-#define PAL_DIM         1       /* grey - for selector arrows, prompts */
-#define PAL_HILITE      2       /* bright - selected word */
-#define PAL_CMD         3       /* yellow - command line */
-#define PAL_TITLE       4       /* green - room name */
-#define PAL_STATUS      5       /* dim blue - status bar */
-#define PAL_ERR         6       /* red - error messages */
-#define PAL_DIVIDER     7       /* dark - separator line */
+#define PAL_NORMAL      0
+#define PAL_DIM         1
+#define PAL_HILITE      2
+#define PAL_CMD         3
+#define PAL_TITLE       4
+#define PAL_STATUS      5
+#define PAL_ERR         6
+#define PAL_DIVIDER     7
 
 /* ---- Input mode ---- */
 #define MODE_VERB       0
 #define MODE_NOUN       1
-#define MODE_CONFIRM    2       /* brief flash before execute */
 
-/* ---- Directions (index into exits[]) ---- */
+/* ---- Directions ---- */
 #define DIR_NORTH       0
 #define DIR_SOUTH       1
 #define DIR_EAST        2
 #define DIR_WEST        3
 #define DIR_UP          4
 #define DIR_DOWN        5
-#define DIR_NONE        0xFF
+#define NO_EXIT         0xFF
 
 /* ---- Object flags ---- */
-#define OBJ_TAKEABLE    0x01    /* can TAKE */
-#define OBJ_CONTAINER   0x02    /* can PUT things IN */
-#define OBJ_OPEN        0x04    /* container is open */
-#define OBJ_LOCKED      0x08    /* locked container/door */
-#define OBJ_WEAPON      0x10    /* can ATTACK with */
-#define OBJ_LIGHT       0x20    /* provides light */
-#define OBJ_LIT         0x40    /* currently lit */
-#define OBJ_WORN        0x80    /* currently worn */
+#define OBJ_TAKEABLE    0x01
+#define OBJ_CONTAINER   0x02
+#define OBJ_OPEN        0x04
+#define OBJ_LOCKED      0x08
+#define OBJ_WEAPON      0x10
+#define OBJ_LIGHT       0x20
+#define OBJ_LIT         0x40
+#define OBJ_WORN        0x80
 
 /* ---- Room flags ---- */
-#define ROOM_DARK       0x01    /* needs light source */
-#define ROOM_VISITED    0x02    /* already visited (show short desc) */
-#define ROOM_ABOVE      0x04    /* outdoors / above ground */
-#define ROOM_SACRED     0x08    /* no combat */
+#define ROOM_DARK       0x01
+#define ROOM_VISITED    0x02
+#define ROOM_ABOVE      0x04
 
-/* ---- Special room IDs ---- */
-#define LOC_PLAYER      0xFF    /* in player inventory */
-#define LOC_CARRIED     0xFE    /* worn/held (not in room) */
-#define LOC_GONE        0xFD    /* removed from game */
-#define NO_EXIT         0xFF    /* no exit in that direction */
+/* ---- Special locations ---- */
+#define LOC_PLAYER      0xFE
+#define LOC_GONE        0xFF
+#define NO_CONTAINER    0xFF
 
 /* ---- Verb IDs ---- */
 #define V_LOOK          0
@@ -98,41 +86,39 @@
 #define V_SAVE          21
 #define V_RESTORE       22
 #define V_QUIT          23
-#define NUM_VERBS       24
+#define V_ENTER         24
+#define V_CLIMB         25
+#define V_MOVE          26
+#define NUM_VERBS       27
 
-/* ---- Object IDs (indices into g_objects[]) ---- */
-/* Keep under 64 objects for save-state budget */
+/* ---- Object IDs ---- */
 #define OBJ_MAILBOX         0
 #define OBJ_LEAFLET         1
-#define OBJ_DOOR_W          2
-#define OBJ_MAT             3
-#define OBJ_LANTERN         4
-#define OBJ_SWORD           5
-#define OBJ_TROPHY_CASE     6
-#define OBJ_PAINTING        7
-#define OBJ_SACK            8
-#define OBJ_GARLIC          9
-#define OBJ_BOTTLE          10
-#define OBJ_WATER           11
-#define OBJ_KNIFE           12
-#define OBJ_CANARY          13
-#define OBJ_COFFIN          14
-#define OBJ_SKULL           15
-#define OBJ_ROPE            16
-#define OBJ_COAL            17
-#define OBJ_TORCH           18
-#define OBJ_GOLD_COIN       19
-#define OBJ_PLATINUM_BAR    20
-#define OBJ_POT_OF_GOLD     21
-#define OBJ_JEWELS          22
-#define OBJ_DIAMOND         23
-#define OBJ_EMERALD         24
-#define OBJ_RUBY            25
-#define OBJ_SCREWDRIVER     26
-#define OBJ_PUMP            27
-#define OBJ_AIR_PUMP        28
-#define OBJ_CRYSTAL_SKULL   29
-#define NUM_OBJECTS         30
+#define OBJ_MAT             2
+#define OBJ_LANTERN         3
+#define OBJ_SWORD           4
+#define OBJ_TROPHY_CASE     5
+#define OBJ_PAINTING        6
+#define OBJ_SACK            7
+#define OBJ_GARLIC          8
+#define OBJ_BOTTLE          9
+#define OBJ_KNIFE           10
+#define OBJ_CANARY          11
+#define OBJ_ROPE            12
+#define OBJ_COAL            13
+#define OBJ_TORCH           14
+#define OBJ_GOLD_COIN       15
+#define OBJ_PLATINUM_BAR    16
+#define OBJ_POT_OF_GOLD     17
+#define OBJ_JEWELS          18
+#define OBJ_DIAMOND         19
+#define OBJ_EMERALD         20
+#define OBJ_RUBY            21
+#define OBJ_SCREWDRIVER     22
+#define OBJ_WINDOW          23
+#define OBJ_RUG             24
+#define OBJ_TRAP_DOOR       25
+#define NUM_OBJECTS         26
 
 /* ---- Room IDs ---- */
 #define ROOM_WEST_OF_HOUSE      0
@@ -154,92 +140,87 @@
 #define ROOM_MAZE_1             16
 #define ROOM_MAZE_2             17
 #define ROOM_MAZE_3             18
-#define ROOM_GRATING_CLEARING   19
+#define ROOM_CLEARING           19
 #define ROOM_FOREST_1           20
 #define ROOM_FOREST_2           21
-#define ROOM_FOREST_PATH        22
-#define ROOM_CLEARING           23
-#define NUM_ROOMS               24
+#define ROOM_GRATING_CLEARING   22
+#define NUM_ROOMS               23
 
-/* ---- Max sizes ---- */
-#define MAX_SCROLL_LINES    128     /* ring buffer for output history */
-#define MAX_LINE_LEN        20      /* chars per display line */
-#define MAX_NOUN_LIST       12      /* nouns shown in selector */
-#define MAX_INVENTORY       12      /* player can carry this many */
+/* ---- Direction noun IDs (for GO verb noun list) ---- */
+#define DIR_NOUN_BASE   0xF0
+#define DIR_NOUN_N      0xF0
+#define DIR_NOUN_S      0xF1
+#define DIR_NOUN_E      0xF2
+#define DIR_NOUN_W      0xF3
+#define DIR_NOUN_U      0xF4
+#define DIR_NOUN_D      0xF5
 
-/* ---- Save/Load ---- */
+/* ---- Direction names (for selector display) ---- */
+extern const char g_dir_names[6][6];
+
+/* ---- Limits ---- */
+#define MAX_SCROLL_LINES    64
+#define MAX_LINE_LEN        20
+#define MAX_NOUN_LIST       12
+#define MAX_INVENTORY       12
+
+/* ---- Save ---- */
 #define SAVE_MAGIC_1        0xA5A5
 #define SAVE_MAGIC_2        0x5A5A
-/* Save block: 128 u16s = 256 bytes (flash block requirement)
- * Layout:
- *  [0]  magic1
- *  [1]  magic2
- *  [2]  player_room
- *  [3]  score
- *  [4]  moves (low)
- *  [5]  moves (high)
- *  [6]  obj_location[0..7]  packed 2 per word (high/low byte)
- *  ...  continues packing all NUM_OBJECTS locations
- *  [21] obj_flags[0..7]     packed 2 per word
- *  ...  continues packing all NUM_OBJECTS flags
- *  [36] room_flags[0..3]    packed 4 per word (2 bits each)
- *  ...  room_flags for all NUM_ROOMS
- *  [48] lamp_fuel (turns remaining)
- *  [49] dead_flag
- *  [50..127] = 0 (reserved)
- */
 #define SAVE_BUF_WORDS      128
 
-/* ---- Structs ---- */
+/* ---- World data (flat arrays, defined in world.c) ---- */
+/* Room names - short */
+extern const char g_room_name[NUM_ROOMS][20];
+/* Room descriptions - broken into lines of <=20 chars each,
+   stored as single string with \n separators */
+/* g_room_desc removed - use engine strings directly */
+/* Room exits: [room*6 + dir] */
+extern const u8    g_room_exits[NUM_ROOMS * 6];
+/* Room base flags (ROM - never changes) */
+extern const u8    g_room_base_flags[NUM_ROOMS];
 
-typedef struct {
-    char *short_name;             /* e.g. "West of House" */
-    char *description;            /* long description */
-    u8          exits[6];               /* indexed by DIR_* */
-    u8          flags;                  /* ROOM_* bitmask */
-} Room;
+/* Object names */
+extern const char g_obj_name[NUM_OBJECTS][16];
+/* Object examine text */
+/* g_obj_desc removed */
+/* Object default location */
+extern const u8    g_obj_default_loc[NUM_OBJECTS];
+/* Object default flags */
+extern const u8    g_obj_default_flags[NUM_OBJECTS];
+/* Object score value when deposited */
+extern const u8    g_obj_score[NUM_OBJECTS];
+/* Object target container for scoring */
+extern const u8    g_obj_target[NUM_OBJECTS];
 
-typedef struct {
-    char *name;                   /* e.g. "mailbox" */
-    char *description;            /* examine text */
-    u8          location;               /* room ID, LOC_PLAYER, LOC_GONE */
-    u8          flags;                  /* OBJ_* bitmask */
-    u8          score_value;            /* points when deposited in trophy case */
-    u8          container_id;           /* if PUT IN: target container obj ID */
-} Object;
+/* Verb names */
+extern const char g_verb_names[NUM_VERBS][12];
 
-/* ---- Global game state (all mutable, lives in work RAM) ---- */
+/* ---- Mutable game state (RAM) ---- */
 extern u8   g_player_room;
 extern u16  g_score;
 extern u16  g_moves;
-extern u8   g_lamp_fuel;        /* turns of light remaining */
+extern u8   g_lamp_fuel;
 extern u8   g_dead;
-extern u8   g_input_mode;       /* MODE_VERB / MODE_NOUN / MODE_CONFIRM */
-extern u8   g_verb_idx;         /* current verb selection */
-extern u8   g_noun_idx;         /* current noun selection in g_noun_list */
-extern u8   g_noun_count;       /* number of nouns available */
-extern u8   g_noun_list[MAX_NOUN_LIST]; /* obj IDs available at this verb */
-extern u8   g_last_verb;        /* for AGAIN */
+extern u8   g_obj_loc[NUM_OBJECTS];
+extern u8   g_obj_flags[NUM_OBJECTS];
+extern u8   g_room_flags[NUM_ROOMS];
+
+/* ---- Parser state ---- */
+extern u8   g_input_mode;
+extern u8   g_verb_idx;
+extern u8   g_noun_idx;
+extern u8   g_noun_count;
+extern u8   g_noun_list[MAX_NOUN_LIST];
+extern u8   g_last_verb;
 extern u8   g_last_noun;
 extern u8   g_pad_cur;
 extern u8   g_pad_prev;
 extern u8   g_pad_press;
 
-/* Object mutable state (location + flags) stored separately
- * from const ROM data so we can flash-save just these arrays */
-extern u8   g_obj_loc[NUM_OBJECTS];
-extern u8   g_obj_flags[NUM_OBJECTS];
-extern u8   g_room_flags[NUM_ROOMS];
-
-/* Text output ring buffer */
-extern u8   g_scroll_top;       /* first visible line in TEXT_ROWS window */
-extern u8   g_scroll_count;     /* total lines in buffer */
-/* Each line is MAX_LINE_LEN+1 bytes. Stored as flat array. */
+/* ---- Text buffer ---- */
+extern u8   g_scroll_top;
+extern u8   g_scroll_count;
 extern char g_lines[MAX_SCROLL_LINES][MAX_LINE_LEN + 1];
 
-/* ROM data */
-extern Room   g_rooms[NUM_ROOMS];
-extern Object g_objects[NUM_OBJECTS];
-extern char *g_verb_names[NUM_VERBS];
-
-#endif /* ZORK_TYPES_H */
+#endif

@@ -170,7 +170,7 @@ void text_scroll_down(void) {
 
 /* ---- Row writers ---- */
 
-static void pad_to_20(char *buf, const char *s) {
+static void pad_to_20(char *buf, char *s) {
     u8 i;
     u8 len;
     len = 0;
@@ -179,13 +179,13 @@ static void pad_to_20(char *buf, const char *s) {
     buf[MAX_LINE_LEN] = 0;
 }
 
-void text_put_row(u8 row, u8 pal, const char *s) {
+void text_put_row(u8 row, u8 pal, char *s) {
     char buf[MAX_LINE_LEN + 1];
     pad_to_20(buf, s);
     PrintString(SCR_1_PLANE, pal, 0, row, buf);
 }
 
-void text_put_row_centered(u8 row, u8 pal, const char *s) {
+void text_put_row_centered(u8 row, u8 pal, char *s) {
     char buf[MAX_LINE_LEN + 1];
     u8 len;
     u8 pad;
@@ -219,8 +219,7 @@ void text_draw_divider(void) {
  * We build it manually to fit exactly 20 chars.
  */
 
-static void build_selector_row(char *buf, const char *prev_s,
-                                const char *cur_s, const char *next_s,
+static void build_selector_row(char *buf, char *prev_s, char *cur_s, char *next_s,
                                 u8 is_active) {
     /* Layout: "< " + prev(5) + " [" + cur(6) + "] " + next(3) + ">" */
     /* Total: 2+5+2+6+2+3 = 20 -- adjust cur width dynamically */
@@ -257,15 +256,14 @@ static void build_selector_row(char *buf, const char *prev_s,
 
 void text_draw_selector(void) {
     char buf[MAX_LINE_LEN + 1];
-    char row[MAX_LINE_LEN + 1];
     u8 prev_v;
     u8 next_v;
     u8 prev_n;
     u8 next_n;
     u8 i;
-    const char *cur_noun;
-    const char *prev_noun;
-    const char *next_noun;
+    char *cur_noun;
+    char *prev_noun;
+    char *next_noun;
 
     prev_v = (g_verb_idx + NUM_VERBS - 1) % NUM_VERBS;
     next_v = (g_verb_idx + 1) % NUM_VERBS;
@@ -276,37 +274,33 @@ void text_draw_selector(void) {
         g_verb_names[next_v],
         g_input_mode == MODE_VERB);
 
-    /* Prefix "V>" or "  " to make active row obvious */
-    row[0] = (g_input_mode == MODE_VERB) ? 'V' : ' ';
-    row[1] = (g_input_mode == MODE_VERB) ? '>' : ' ';
-    for (i = 2; i < MAX_LINE_LEN; i++) row[i] = buf[i];
-    row[MAX_LINE_LEN] = 0;
-
     PrintString(SCR_1_PLANE,
                 g_input_mode == MODE_VERB ? PAL_HILITE : PAL_DIM,
-                0, ROW_VERB, row);
+                0, ROW_VERB, buf);
 
     /* Noun row */
     if (g_noun_count > 0) {
         prev_n = (g_noun_idx + MAX_NOUN_LIST - 1) % g_noun_count;
         next_n = (g_noun_idx + 1) % g_noun_count;
 
-        cur_noun  = g_objects[g_noun_list[g_noun_idx]].name;
-        prev_noun = g_objects[g_noun_list[prev_n]].name;
-        next_noun = g_objects[g_noun_list[next_n]].name;
+        /* Direction nouns (for GO) use g_dir_names, objects use g_obj_name */
+        cur_noun  = (g_noun_list[g_noun_idx] >= 0xF0)
+                    ? (char*)g_dir_names[g_noun_list[g_noun_idx] - 0xF0]
+                    : (char*)g_obj_name[g_noun_list[g_noun_idx]];
+        prev_noun = (g_noun_list[prev_n] >= 0xF0)
+                    ? (char*)g_dir_names[g_noun_list[prev_n] - 0xF0]
+                    : (char*)g_obj_name[g_noun_list[prev_n]];
+        next_noun = (g_noun_list[next_n] >= 0xF0)
+                    ? (char*)g_dir_names[g_noun_list[next_n] - 0xF0]
+                    : (char*)g_obj_name[g_noun_list[next_n]];
 
         build_selector_row(buf,
             prev_noun, cur_noun, next_noun,
             g_input_mode == MODE_NOUN);
 
-        row[0] = (g_input_mode == MODE_NOUN) ? 'N' : ' ';
-        row[1] = (g_input_mode == MODE_NOUN) ? '>' : ' ';
-        for (i = 2; i < MAX_LINE_LEN; i++) row[i] = buf[i];
-        row[MAX_LINE_LEN] = 0;
-
         PrintString(SCR_1_PLANE,
                     g_input_mode == MODE_NOUN ? PAL_CMD : PAL_DIM,
-                    0, ROW_NOUN, row);
+                    0, ROW_NOUN, buf);
     } else {
         PrintString(SCR_1_PLANE, PAL_DIM, 0, ROW_NOUN,
                     "    [ press A ]     ");
@@ -314,7 +308,7 @@ void text_draw_selector(void) {
 }
 
 /* ---- Command line row ---- */
-void text_print_cmd(const char *verb, const char *noun) {
+void text_print_cmd(char *verb, char *noun) {
     char buf[MAX_LINE_LEN + 1];
     u8 i;
     u8 pos;
@@ -337,7 +331,13 @@ void text_print_cmd(const char *verb, const char *noun) {
     }
     /* Cursor underscore */
     if (pos < MAX_LINE_LEN) buf[pos] = '_';
-    PrintString(SCR_1_PLANE, PAL_CMD, 0, ROW_CMD, buf);
+    /* Use PutTile to guarantee all 20 chars are written */
+    {
+        u8 tx;
+        for (tx = 0; tx < MAX_LINE_LEN; tx++) {
+            PutTile(SCR_1_PLANE, PAL_CMD, tx, ROW_CMD, buf[tx]);
+        }
+    }
 }
 
 /* ---- Status bar ---- */

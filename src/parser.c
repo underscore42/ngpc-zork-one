@@ -16,6 +16,13 @@
 #include "engine.h"
 
 /* Global input state */
+static char s_empty[1] = {0};
+static u8 s_action_delay = 0;
+
+static char *noun_name(u8 nid) {
+    if (nid >= 0xF0) return (char*)g_dir_names[nid - 0xF0];
+    return (char*)g_obj_name[nid];
+}
 u8 g_pad_cur;
 u8 g_pad_prev;
 u8 g_pad_press;
@@ -42,6 +49,7 @@ static u8 verb_needs_noun(u8 v) {
     if (v == V_SAVE)      return 0;
     if (v == V_RESTORE)   return 0;
     if (v == V_QUIT)      return 0;
+    if (v == V_ENTER)     return 0;
     return 1;
 }
 
@@ -56,6 +64,19 @@ void parser_build_nouns(void) {
     g_noun_count = 0;
     v = g_verb_idx;
 
+    /* GO verb: add available exit directions as nouns */
+    if (v == V_GO) {
+        u8 dir;
+        for (dir = 0; dir < 6; dir++) {
+            if (g_room_exits[g_player_room * 6 + dir] != NO_EXIT) {
+                g_noun_list[g_noun_count] = 0xF0 + dir;
+                g_noun_count++;
+            }
+        }
+        g_noun_idx = 0;
+        return;
+    }
+
     for (i = 0; i < NUM_OBJECTS && g_noun_count < MAX_NOUN_LIST; i++) {
         loc   = g_obj_loc[i];
         flags = g_obj_flags[i];
@@ -66,10 +87,10 @@ void parser_build_nouns(void) {
         /* Object must be accessible: in current room, or in player inventory,
          * or inside an open container in current room */
         if (loc != g_player_room && loc != LOC_PLAYER) {
-            /* Is it inside a container that's in the room or player inv? */
+            /* Inside open container? loc must be object ID (>= NUM_ROOMS) */
             u8 cont_loc;
             u8 cont_flags;
-            if (loc >= NUM_OBJECTS) continue;
+            if (loc < NUM_ROOMS || loc >= NUM_OBJECTS) continue;
             cont_loc   = g_obj_loc[loc];
             cont_flags = g_obj_flags[loc];
             if (!(cont_flags & OBJ_OPEN)) continue;
@@ -96,6 +117,18 @@ void parser_build_nouns(void) {
         if (v == V_PUT) {
             /* PUT needs an obj in inventory */
             if (loc != LOC_PLAYER) continue;
+        }
+        if (v == V_ENTER) {
+            /* ENTER - only show window when at Behind House */
+            if (i != OBJ_WINDOW) continue;
+            if (g_player_room != ROOM_BEHIND_HOUSE) continue;
+        }
+        if (v == V_MOVE) {
+            /* MOVE - only rug */
+            if (i != OBJ_RUG) continue;
+        }
+        if (v == V_CLIMB) {
+            if (flags & OBJ_TAKEABLE) continue;
         }
 
         g_noun_list[g_noun_count] = i;
@@ -130,41 +163,41 @@ void parser_tick(void) {
     g_pad_cur   = JOYPAD & 0x7F;   /* mask power bit */
     g_pad_press = g_pad_cur & ~g_pad_prev;
 
-    /* Auto-repeat for left/right */
-    joy = 0;
-    if (g_pad_cur & (J_LEFT | J_RIGHT)) {
+    /* Post-action delay - prevents A from firing repeatedly */
+    if (s_action_delay > 0) {
+        s_action_delay--;
+        return;
+    }
+
+    /* Left/Right: single tap only (edge detect via pad_press) */
+    joy = g_pad_press & (J_LEFT | J_RIGHT);
+
+    /* Up/Down: scroll text with auto-repeat */
+    if (g_pad_cur & (J_UP | J_DOWN)) {
         s_held_frames++;
-        if (s_held_frames == 1) {
-            joy = g_pad_cur & (J_LEFT | J_RIGHT);
-        } else if (s_held_frames > REPEAT_DELAY) {
-            if (((u8)(s_held_frames - REPEAT_DELAY)) % REPEAT_RATE == 0) {
-                joy = g_pad_cur & (J_LEFT | J_RIGHT);
-            }
-        }
     } else {
         s_held_frames = 0;
     }
 
-    /* Up/Down: scroll text window always */
-    if (g_pad_press & J_UP) {
-        text_scroll_up();
-        text_redraw();
-        text_draw_divider();
-        text_draw_selector();
-        text_print_cmd(g_verb_names[g_verb_idx],
-                       g_noun_count ? g_objects[g_noun_list[g_noun_idx]].name : "");
-        text_draw_status();
-        return;
-    }
-    if (g_pad_press & J_DOWN) {
-        text_scroll_down();
-        text_redraw();
-        text_draw_divider();
-        text_draw_selector();
-        text_print_cmd(g_verb_names[g_verb_idx],
-                       g_noun_count ? g_objects[g_noun_list[g_noun_idx]].name : "");
-        text_draw_status();
-        return;
+    /* Auto-repeat fire for up/down scroll */
+    {
+        u8 do_ud;
+        do_ud = 0;
+        if (g_pad_press & (J_UP | J_DOWN)) do_ud = 1;
+        else if (s_held_frames > REPEAT_DELAY) {
+            if (((u8)(s_held_frames - REPEAT_DELAY)) % REPEAT_RATE == 0) do_ud = 1;
+        }
+        if (do_ud) {
+            if (g_pad_cur & J_UP)   text_scroll_up();
+            if (g_pad_cur & J_DOWN) text_scroll_down();
+            text_redraw();
+            text_draw_divider();
+            text_draw_selector();
+            text_print_cmd(g_verb_names[g_verb_idx],
+                           g_noun_count ? noun_name(g_noun_list[g_noun_idx]) : s_empty);
+            text_draw_status();
+            return;
+        }
     }
 
     /* OPTION = quick inventory */
@@ -188,7 +221,7 @@ void parser_tick(void) {
         if (moved) {
             parser_build_nouns();
             text_draw_selector();
-            text_print_cmd(g_verb_names[g_verb_idx], "");
+            text_print_cmd(g_verb_names[g_verb_idx], s_empty);
             text_draw_status();
         }
 
@@ -199,6 +232,7 @@ void parser_tick(void) {
                 g_last_noun = 0;
                 engine_execute(g_verb_idx, 0xFF);
                 engine_refresh_screen();
+                s_action_delay = 20;
             } else {
                 /* Move to noun selection */
                 parser_build_nouns();
@@ -207,10 +241,11 @@ void parser_tick(void) {
                     g_noun_idx = 0;
                     text_draw_selector();
                     text_print_cmd(g_verb_names[g_verb_idx],
-                                   g_objects[g_noun_list[0]].name);
+                                   noun_name(g_noun_list[0]));
                 } else {
                     text_println("Nothing here to do that with.");
                     engine_refresh_screen();
+                    s_action_delay = 20;
                 }
             }
         }
@@ -227,7 +262,7 @@ void parser_tick(void) {
         if (moved) {
             text_draw_selector();
             text_print_cmd(g_verb_names[g_verb_idx],
-                           g_objects[g_noun_list[g_noun_idx]].name);
+                           noun_name(g_noun_list[g_noun_idx]));
         }
 
         if (g_pad_press & J_A) {
@@ -237,12 +272,15 @@ void parser_tick(void) {
             g_input_mode = MODE_VERB;
             engine_execute(g_verb_idx, g_noun_list[g_noun_idx]);
             engine_refresh_screen();
+            s_action_delay = 20;
         }
         if (g_pad_press & J_B) {
             /* Cancel back to verb */
             g_input_mode = MODE_VERB;
+            parser_build_nouns();
             text_draw_selector();
-            text_print_cmd(g_verb_names[g_verb_idx], "");
+            text_print_cmd(g_verb_names[g_verb_idx], s_empty);
+            text_draw_status();
         }
     }
 }
