@@ -89,7 +89,9 @@
 #define V_ENTER         24
 #define V_CLIMB         25
 #define V_MOVE          26
-#define NUM_VERBS       27
+#define V_GET           27
+#define V_DROP2         28
+#define NUM_VERBS       29
 
 /* ---- Object IDs ---- */
 #define OBJ_MAILBOX         0
@@ -118,7 +120,8 @@
 #define OBJ_WINDOW          23
 #define OBJ_RUG             24
 #define OBJ_TRAP_DOOR       25
-#define NUM_OBJECTS         26
+#define OBJ_TROLL           26
+#define NUM_OBJECTS         27
 
 /* ---- Room IDs ---- */
 #define ROOM_WEST_OF_HOUSE      0
@@ -144,7 +147,8 @@
 #define ROOM_FOREST_1           20
 #define ROOM_FOREST_2           21
 #define ROOM_GRATING_CLEARING   22
-#define NUM_ROOMS               23
+#define ROOM_TROLL_ROOM         23
+#define NUM_ROOMS               24
 
 /* ---- Direction noun IDs (for GO verb noun list) ---- */
 #define DIR_NOUN_BASE   0xF0
@@ -202,6 +206,7 @@ extern u16  g_score;
 extern u16  g_moves;
 extern u8   g_lamp_fuel;
 extern u8   g_dead;
+extern u8   g_troll_alive;
 extern u8   g_obj_loc[NUM_OBJECTS];
 extern u8   g_obj_flags[NUM_OBJECTS];
 extern u8   g_room_flags[NUM_ROOMS];

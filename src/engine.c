@@ -4,6 +4,7 @@
 #include "zork_types.h"
 #include "text.h"
 #include "zork_save.h"
+#include "wizard.h"
 
 /* Mutable state */
 u8  g_player_room;
@@ -11,6 +12,7 @@ u16 g_score;
 u16 g_moves;
 u8  g_lamp_fuel;
 u8  g_dead;
+u8  g_troll_alive;
 u8  g_obj_loc[NUM_OBJECTS];
 u8  g_obj_flags[NUM_OBJECTS];
 u8  g_room_flags[NUM_ROOMS];
@@ -19,6 +21,7 @@ u8  g_room_flags[NUM_ROOMS];
 
 static u8 room_is_lit(u8 rid) {
     u8 i;
+    if (wizard_is_lit()) return 1;
     if (g_room_flags[rid] & ROOM_ABOVE) return 1;
     for (i = 0; i < NUM_OBJECTS; i++) {
         if (!(g_obj_flags[i] & OBJ_LIGHT)) continue;
@@ -166,6 +169,17 @@ static void engine_print_room_desc(u8 rid) {
             text_println("A clearing. Iron");
             text_println("grating in ground.");
             break;
+        case ROOM_TROLL_ROOM:
+            text_println("This is a small room.");
+            if (g_troll_alive) {
+                text_println("A nasty troll blocks");
+                text_println("the east exit,");
+                text_println("waving a bloody axe.");
+            } else {
+                text_println("A dead troll lies");
+                text_println("on the floor.");
+            }
+            break;
         default:
             text_println("You are somewhere.");
             break;
@@ -270,6 +284,12 @@ void engine_do_inventory(void) {
 static void do_go(u8 dir) {
     u8 dest;
     dest = g_room_exits[g_player_room * 6 + dir];
+    /* Troll blocks east exit from troll room */
+    if (g_player_room == ROOM_TROLL_ROOM && dir == DIR_EAST && g_troll_alive) {
+        text_println("The troll blocks your");
+        text_println("way, waving his axe!");
+        return;
+    }
     if (dest == NO_EXIT) {
         text_println("You can't go that way.");
         return;
@@ -477,6 +497,7 @@ void engine_execute(u8 verb, u8 obj) {
     cmd_buf[ci] = 0;
     text_newline();
     text_println(cmd_buf);
+    wizard_log(cmd_buf);
 
     switch (verb) {
         case V_LOOK:      engine_do_look();      break;
@@ -500,7 +521,34 @@ void engine_execute(u8 verb, u8 obj) {
         case V_TURN_ON:  do_turn_on(obj); break;
         case V_TURN_OFF: do_turn_off(obj);break;
         case V_ATTACK:
-            text_println("Violence isn't the\nanswer here.");
+            if (obj == OBJ_TROLL) {
+                if (!player_has(OBJ_SWORD) && !player_has(OBJ_KNIFE)
+                    && !player_has(OBJ_SCREWDRIVER)) {
+                    text_println("You need a weapon!");
+                } else if (g_troll_alive) {
+                    /* Random-ish combat using move count as seed */
+                    u8 hit;
+                    hit = (u8)(g_moves & 3);
+                    if (hit < 2) {
+                        text_println("You slash the troll.");
+                        text_println("He is wounded!");
+                    } else if (hit == 2) {
+                        text_println("The troll is dead!");
+                        g_troll_alive = 0;
+                        g_obj_loc[OBJ_TROLL] = LOC_GONE;
+                        engine_add_score(25);
+                        text_println("Score +25");
+                    } else {
+                        text_println("The troll parries!");
+                    }
+                } else {
+                    text_println("The troll is already");
+                    text_println("dead.");
+                }
+            } else {
+                text_println("Violence isn't the");
+                text_println("answer here.");
+            }
             g_moves = g_moves + 1;
             break;
         case V_PUT:  do_drop(obj); break;
@@ -515,6 +563,12 @@ void engine_execute(u8 verb, u8 obj) {
         case V_RESTORE:
             zork_load();
             engine_describe_room(g_player_room, 1);
+            break;
+        case V_GET:
+            do_take(obj);
+            break;
+        case V_DROP2:
+            do_drop(obj);
             break;
         case V_ENTER:
             /* Context-sensitive ENTER based on current room */
@@ -582,12 +636,14 @@ void engine_refresh_screen(void) {
                       ? (char*)g_dir_names[g_noun_list[g_noun_idx] - 0xF0]
                       : (char*)g_obj_name[g_noun_list[g_noun_idx]])
                    : s_empty);
-    text_draw_status();
+    if (g_wizard_mode) wizard_draw_status();
+    else text_draw_status();
 }
 
 void engine_init(void) {
     u8 i;
     g_player_room = ROOM_WEST_OF_HOUSE;
+    g_troll_alive = 1;
     g_score       = 0;
     g_moves       = 0;
     g_lamp_fuel   = 200;

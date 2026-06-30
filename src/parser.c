@@ -14,6 +14,8 @@
 #include "parser.h"
 #include "text.h"
 #include "engine.h"
+#include "wizard.h"
+#include "script.h"
 
 /* Global input state */
 static char s_empty[1] = {0};
@@ -124,8 +126,12 @@ void parser_build_nouns(void) {
             if (g_player_room != ROOM_BEHIND_HOUSE) continue;
         }
         if (v == V_MOVE) {
-            /* MOVE - only rug */
             if (i != OBJ_RUG) continue;
+        }
+        if (v == V_ATTACK) {
+            /* Only attack troll when in troll room */
+            if (i == OBJ_TROLL && g_player_room != ROOM_TROLL_ROOM) continue;
+            if (i == OBJ_TROLL && !g_troll_alive) continue;
         }
         if (v == V_CLIMB) {
             if (flags & OBJ_TAKEABLE) continue;
@@ -162,6 +168,12 @@ void parser_tick(void) {
     g_pad_prev  = g_pad_cur;
     g_pad_cur   = JOYPAD & 0x7F;   /* mask power bit */
     g_pad_press = g_pad_cur & ~g_pad_prev;
+
+    /* Konami code check */
+    wizard_check_konami(g_pad_press);
+
+    /* Wizard teleport (OPTION+UD) */
+    wizard_tick(g_pad_press, g_pad_cur);
 
     /* Post-action delay - prevents A from firing repeatedly */
     if (s_action_delay > 0) {
@@ -200,10 +212,17 @@ void parser_tick(void) {
         }
     }
 
-    /* OPTION = quick inventory */
+    /* OPTION combos */
     if (g_pad_press & J_OPTION) {
-        engine_do_inventory();
-        engine_refresh_screen();
+        if (g_wizard_mode && (g_pad_cur & J_B)) {
+            /* OPTION+B in wizard mode: run checkpoint 1 script */
+            script_start(1);
+            engine_refresh_screen();
+        } else {
+            /* Normal OPTION: quick inventory */
+            engine_do_inventory();
+            engine_refresh_screen();
+        }
         return;
     }
 

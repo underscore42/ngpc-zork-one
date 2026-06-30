@@ -12,7 +12,8 @@ const char g_verb_names[NUM_VERBS][12] = {
     "TURN OFF",  "WAIT",      "AGAIN",     "NORTH",
     "SOUTH",     "EAST",      "WEST",      "UP",
     "DOWN",      "SAVE",      "RESTORE",   "QUIT",
-    "ENTER",     "CLIMB",     "MOVE"
+    "ENTER",     "CLIMB",     "MOVE",
+    "GET",       "DROP"
 };
 
 /* Room short names: 20 chars max */
@@ -39,7 +40,8 @@ const char g_room_name[NUM_ROOMS][20] = {
     "Clearing",
     "Forest",
     "Forest",
-    "Grating Clearing"
+    "Grating Clearing",
+    "Troll Room"
 };
 
 /* Direction names for GO noun selector */
@@ -74,7 +76,8 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "screwdriver",
     "window",
     "rug",
-    "trap door"
+    "trap door",
+    "troll"
 };
 
 /* Room exits: [room_id*6 + dir], N/S/E/W/U/D */
@@ -86,7 +89,7 @@ const u8 g_room_exits[NUM_ROOMS * 6] = {
     255, 255, 255, 5, 6, 255,  /* 4  KITCHEN */
     255, 255, 4, 255, 255, 7,  /* 5  LIVING_ROOM */
     255, 255, 255, 255, 255, 4,/* 6  ATTIC */
-    8, 255, 255, 255, 5, 255,  /* 7  CELLAR */
+    23, 255, 255, 255, 5, 255,  /* 7  CELLAR: N=TrollRoom */
     255, 255, 9, 255, 255, 255,/* 8  EAST_PASSAGE */
     10, 255, 255, 8, 255, 255, /* 9  ROUND_ROOM */
     255, 9, 11, 255, 255, 255, /* 10 NORTH_SOUTH_PASS */
@@ -101,7 +104,8 @@ const u8 g_room_exits[NUM_ROOMS * 6] = {
     20, 255, 255, 3, 255, 255, /* 19 CLEARING: N=Forest1 W=Behind */
     22, 19, 21, 20, 255, 255,  /* 20 FOREST_1: N=Grating S=Clearing E=Forest2 */
     20, 255, 255, 19, 255, 255,/* 21 FOREST_2: N=Forest1 W=Clearing */
-    255, 20, 255, 21, 255, 255 /* 22 GRATING_CLEARING: S=Forest1 W=Forest2 */
+    255, 20, 255, 21, 255, 255, /* 22 GRATING_CLEARING */
+    10, 255, 8, 7, 255, 255  /* 23 TROLL_ROOM: N=NSPass E=EastPass W=Cellar */
 };
 
 /* Default object locations */
@@ -131,7 +135,8 @@ const u8 g_obj_default_loc[NUM_OBJECTS] = {
     ROOM_STUDIO,         /* 22 screwdriver */
     3,                   /* 23 window = ROOM_BEHIND_HOUSE */
     5,                   /* 24 rug = ROOM_LIVING_ROOM */
-    255                  /* 25 trap door starts hidden (LOC_GONE) */
+    255,                 /* 25 trap door starts hidden */
+    23                   /* 26 troll in troll room */
 };
 
 /* Default object flags */
@@ -161,7 +166,8 @@ const u8 g_obj_default_flags[NUM_OBJECTS] = {
     OBJ_TAKEABLE | OBJ_WEAPON, /* 22 screwdriver */
     OBJ_CONTAINER | OBJ_OPEN,  /* 23 window - already open */
     0,                         /* 24 rug */
-    OBJ_CONTAINER              /* 25 trap door - closed */
+    OBJ_CONTAINER,             /* 25 trap door */
+    OBJ_WEAPON                 /* 26 troll - attackable */
 };
 
 /* Score values */

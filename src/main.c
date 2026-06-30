@@ -10,6 +10,8 @@
 #include "text.h"
 #include "parser.h"
 #include "engine.h"
+#include "wizard.h"
+#include "script.h"
 
 static void setup_palettes(void) {
     SetBackgroundColour(RGB(0, 0, 0));
@@ -83,5 +85,6 @@ void main(void) {
         WaitVsync();
         WATCHDOG = WATCHDOG_CLEAR;
         parser_tick();
+        script_tick();
     }
 }
