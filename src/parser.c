@@ -70,7 +70,7 @@ void parser_build_nouns(void) {
     if (v == V_GO) {
         u8 dir;
         for (dir = 0; dir < NUM_DIRS; dir++) {
-            if (g_room_exits[g_player_room * NUM_DIRS + dir] != NO_EXIT) {
+            if (g_room_exits[(u16)g_player_room * NUM_DIRS + dir] != NO_EXIT) {
                 g_noun_list[g_noun_count] = 0xF0 + dir;
                 g_noun_count++;
             }

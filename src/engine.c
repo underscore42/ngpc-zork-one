@@ -745,7 +745,7 @@ void engine_do_inventory(void) {
 static void do_go(u8 dir) {
     u8 dest;
     /* stride is now NUM_DIRS=10 */
-    dest = g_room_exits[g_player_room * NUM_DIRS + dir];
+    dest = g_room_exits[(u16)g_player_room * NUM_DIRS + dir];
     /* Troll blocks east exit from troll room */
     if (g_player_room == ROOM_TROLL_ROOM && dir == DIR_EAST && g_troll_alive) {
         text_println("The troll blocks your");
