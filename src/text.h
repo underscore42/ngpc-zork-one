@@ -13,7 +13,7 @@ void text_scroll_up(void);         /* scroll output window up one line */
 void text_scroll_down(void);       /* scroll output window down one line */
 void text_clear(void);             /* clear buffer and screen */
 void text_print_room_name(char *name);  /* in PAL_TITLE */
-void text_print_cmd(char *verb, char *noun); /* row ROW_CMD */
+void text_print_cmd(const char *verb, char *noun); /* row ROW_CMD */
 void text_draw_status(void);       /* row ROW_STATUS: score / moves */
 void text_draw_divider(void);      /* row ROW_DIVIDER */
 void text_draw_selector(void);     /* rows ROW_VERB / ROW_NOUN */

@@ -219,7 +219,7 @@ void text_draw_divider(void) {
  * We build it manually to fit exactly 20 chars.
  */
 
-static void build_selector_row(char *buf, char *prev_s, char *cur_s, char *next_s,
+static void build_selector_row(char *buf, const char *prev_s, const char *cur_s, const char *next_s,
                                 u8 is_active) {
     /* Layout: "< " + prev(5) + " [" + cur(6) + "] " + next(3) + ">" */
     /* Total: 2+5+2+6+2+3 = 20 -- adjust cur width dynamically */
@@ -308,7 +308,7 @@ void text_draw_selector(void) {
 }
 
 /* ---- Command line row ---- */
-void text_print_cmd(char *verb, char *noun) {
+void text_print_cmd(const char *verb, char *noun) {
     char buf[MAX_LINE_LEN + 1];
     u8 i;
     u8 pos;
@@ -319,8 +319,10 @@ void text_print_cmd(char *verb, char *noun) {
     buf[1] = ' ';
     pos = 2;
     i = 0;
-    while (verb[i] && pos < MAX_LINE_LEN) {
-        buf[pos++] = verb[i++];
+    {
+        u8 vi2;
+        vi2 = 0;
+        while (verb[vi2] && pos < MAX_LINE_LEN) buf[pos++] = verb[vi2++];
     }
     if (noun && noun[0] && pos < MAX_LINE_LEN - 1) {
         buf[pos++] = ' ';
@@ -366,7 +368,7 @@ void text_draw_status(void) {
     buf[9]  = '0' + m % 10;
 
     /* Lamp indicator */
-    if (g_obj_flags[OBJ_LANTERN] & OBJ_LIT) {
+    if (g_obj_flags[OBJ_LAMP] & OBJ_LIT) {
         buf[14] = 'L'; buf[15] = 'A'; buf[16] = 'M'; buf[17] = 'P';
     }
 

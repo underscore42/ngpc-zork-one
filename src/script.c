@@ -25,11 +25,11 @@ static const u8 SCRIPT_CP1[] = {
     V_EAST,     NO_OBJ,          /* -> Behind House */
     V_ENTER,    NO_OBJ,          /* -> Kitchen */
     V_WEST,     NO_OBJ,          /* -> Living Room */
-    V_TAKE,     OBJ_LANTERN,     /* take lamp */
+    V_TAKE,     OBJ_LAMP,     /* take lamp */
     V_TAKE,     OBJ_SWORD,       /* take sword */
     V_MOVE,     OBJ_RUG,         /* reveal trap door */
     V_OPEN,     OBJ_TRAP_DOOR,   /* open trap door */
-    V_TURN_ON,  OBJ_LANTERN,     /* lamp on */
+    V_TURN_ON,  OBJ_LAMP,     /* lamp on */
     V_DOWN,     NO_OBJ,          /* -> Cellar */
     V_SOUTH,    NO_OBJ,          /* -> Cave */
     V_ATTACK,   OBJ_TROLL,       /* attack troll */

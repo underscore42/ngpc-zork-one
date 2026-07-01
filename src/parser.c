@@ -69,8 +69,8 @@ void parser_build_nouns(void) {
     /* GO verb: add available exit directions as nouns */
     if (v == V_GO) {
         u8 dir;
-        for (dir = 0; dir < 6; dir++) {
-            if (g_room_exits[g_player_room * 6 + dir] != NO_EXIT) {
+        for (dir = 0; dir < NUM_DIRS; dir++) {
+            if (g_room_exits[g_player_room * NUM_DIRS + dir] != NO_EXIT) {
                 g_noun_list[g_noun_count] = 0xF0 + dir;
                 g_noun_count++;
             }
@@ -85,6 +85,9 @@ void parser_build_nouns(void) {
 
         /* Skip removed objects */
         if (loc == LOC_GONE) continue;
+        /* Skip scenery objects */
+        if (flags & OBJ_NODESC) continue;
+        if (flags == 0 && g_obj_score[i] == 0) continue;
 
         /* Object must be accessible: in current room, or in player inventory,
          * or inside an open container in current room */
@@ -122,8 +125,8 @@ void parser_build_nouns(void) {
         }
         if (v == V_ENTER) {
             /* ENTER - only show window when at Behind House */
-            if (i != OBJ_WINDOW) continue;
-            if (g_player_room != ROOM_BEHIND_HOUSE) continue;
+            if (i != OBJ_KITCHEN_WINDOW) continue;
+            if (g_player_room != ROOM_EAST_OF_HOUSE) continue;
         }
         if (v == V_MOVE) {
             if (i != OBJ_RUG) continue;

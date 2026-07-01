@@ -1,45 +1,34 @@
 /* zork_save.c - Zork Neo: Flash save/load
  *
- * Pack all mutable game state into exactly 128 u16s (256 bytes) -
- * the minimum flash block write size for GetSavedData/Flash.
+ * 256 u16s (512 bytes) packed layout:
+ *   [0]   SAVE_MAGIC_1  (0xA5A5)
+ *   [1]   SAVE_MAGIC_2  (0x5A5A)
+ *   [2]   player_room
+ *   [3]   score
+ *   [4]   moves
+ *   [5]   lamp_fuel
+ *   [6]   dead | (troll_alive<<1) | (thief_alive<<2) | (cyclops_here<<3)
+ *   [7..67]   obj_loc   (122 objects, 2 per word, hi=even idx)
+ *   [68..128] obj_flags (122 objects, 2 per word)
+ *   [129..135] room_visited (110 rooms, 1 bit per room, 16 per word)
+ *   [136..255] reserved
  *
- * Word offsets are computed from NUM_OBJECTS / NUM_ROOMS at compile
- * time via macros, so adding objects or rooms later can't silently
- * desync save and load (it just needs OBJ_WORDS/ROOM_WORDS to still
- * fit under SAVE_BUF_WORDS).
- *
- * Save layout (words):
- *   [0]  SAVE_MAGIC_1  (0xA5A5)
- *   [1]  SAVE_MAGIC_2  (0x5A5A)
- *   [2]  player_room
- *   [3]  score
- *   [4]  moves
- *   [5]  lamp_fuel
- *   [6]  dead | (troll_alive << 1)
- *   [BASE_OBJ_LOC   .. +OBJ_WORDS-1]   obj_loc,   2 objects/word (hi=even idx)
- *   [BASE_OBJ_FLAGS .. +OBJ_WORDS-1]   obj_flags, 2 objects/word
- *   [BASE_ROOM_FLAGS.. +ROOM_WORDS-1]  room_flags, 4 rooms/word, 4 bits each
- *   [BASE_END .. 127] = 0 (reserved / padding)
- *
- * Uses GetSavedData/Flash from library.c (same flash driver as asteroids).
+ * Room ABOVE/DARK flags are NOT saved - restored from g_room_base_flags at init.
+ * Only ROOM_VISITED bit needs persistence.
  */
 #include "zork_save.h"
 #include "engine.h"
 #include "text.h"
 
-/* ---- Word offset layout, computed from current object/room counts ---- */
-#define OBJ_WORDS        ((NUM_OBJECTS + 1) / 2)
-#define ROOM_WORDS       ((NUM_ROOMS + 3) / 4)
+#define OBJ_WORDS         ((NUM_OBJECTS + 1) / 2)
+#define ROOM_VISIT_WORDS  ((NUM_ROOMS + 15) / 16)
 
-#define BASE_OBJ_LOC     7
-#define BASE_OBJ_FLAGS   (BASE_OBJ_LOC + OBJ_WORDS)
-#define BASE_ROOM_FLAGS  (BASE_OBJ_FLAGS + OBJ_WORDS)
-#define BASE_END         (BASE_ROOM_FLAGS + ROOM_WORDS)
+#define BASE_OBJ_LOC      7
+#define BASE_OBJ_FLAGS    (BASE_OBJ_LOC + OBJ_WORDS)
+#define BASE_ROOM_VISITED (BASE_OBJ_FLAGS + OBJ_WORDS)
+#define BASE_END          (BASE_ROOM_VISITED + ROOM_VISIT_WORDS)
 
-/* As of writing, BASE_END = 41 with NUM_OBJECTS=27, NUM_ROOMS=24.
- * Must stay below SAVE_BUF_WORDS (128). If you add enough objects/
- * rooms to threaten that, widen this comment into an actual
- * preprocessor #if check. */
+/* BASE_END = 136 with 122 objects, 110 rooms. Must stay < SAVE_BUF_WORDS (256). */
 
 static u16 save_buf[SAVE_BUF_WORDS];
 
@@ -51,14 +40,16 @@ void zork_save(void) {
 
     save_buf[0] = SAVE_MAGIC_1;
     save_buf[1] = SAVE_MAGIC_2;
-
     save_buf[2] = (u16)g_player_room;
     save_buf[3] = g_score;
     save_buf[4] = g_moves;
     save_buf[5] = (u16)g_lamp_fuel;
-    save_buf[6] = (u16)g_dead | ((u16)(g_troll_alive ? 1 : 0) << 1);
+    save_buf[6] = (u16)g_dead
+                | ((u16)(g_troll_alive  ? 1 : 0) << 1)
+                | ((u16)(g_thief_alive  ? 1 : 0) << 2)
+                | ((u16)(g_cyclops_here ? 1 : 0) << 3);
 
-    /* obj_loc: 2 objects per word, even index in high byte */
+    /* obj_loc: 2 per word, even index in high byte */
     for (i = 0; i < NUM_OBJECTS; i++) {
         pair = i >> 1;
         if (i & 1) {
@@ -70,7 +61,7 @@ void zork_save(void) {
         }
     }
 
-    /* obj_flags: 2 objects per word */
+    /* obj_flags: 2 per word */
     for (i = 0; i < NUM_OBJECTS; i++) {
         pair = i >> 1;
         if (i & 1) {
@@ -82,22 +73,18 @@ void zork_save(void) {
         }
     }
 
-    /* room_flags: 4 rooms per word, 4 bits each (VISITED, DARK, ABOVE, spare) */
+    /* room visited: 1 bit per room, 16 rooms per word */
     for (i = 0; i < NUM_ROOMS; i++) {
         u8 word_off;
         u8 bit_off;
-        u16 mask;
-        u16 val;
-        word_off = i >> 2;
-        bit_off  = (u8)((i & 3) << 2);
-        val  = (u16)(g_room_flags[i] & 0x0F) << bit_off;
-        mask = (u16)0x000F << bit_off;
-        save_buf[BASE_ROOM_FLAGS + word_off] =
-            (save_buf[BASE_ROOM_FLAGS + word_off] & (u16)(~mask)) | val;
+        word_off = i >> 4;
+        bit_off  = i & 15;
+        if (g_room_flags[i] & ROOM_VISITED) {
+            save_buf[BASE_ROOM_VISITED + word_off] |= (u16)(1 << bit_off);
+        }
     }
 
     Flash((void*)save_buf);
-
     text_println("Game saved.");
 }
 
@@ -113,43 +100,43 @@ void zork_load(void) {
         return;
     }
 
-    g_player_room = (u8)save_buf[2];
-    g_score       = save_buf[3];
-    g_moves       = save_buf[4];
-    g_lamp_fuel   = (u8)save_buf[5];
-    g_dead        = (u8)(save_buf[6] & 0x01);
-    g_troll_alive = (u8)((save_buf[6] >> 1) & 0x01);
+    g_player_room  = (u8)save_buf[2];
+    g_score        = save_buf[3];
+    g_moves        = save_buf[4];
+    g_lamp_fuel    = (u8)save_buf[5];
+    g_dead         = (u8)(save_buf[6] & 0x01);
+    g_troll_alive  = (u8)((save_buf[6] >> 1) & 0x01);
+    g_thief_alive  = (u8)((save_buf[6] >> 2) & 0x01);
+    g_cyclops_here = (u8)((save_buf[6] >> 3) & 0x01);
 
-    /* obj_loc */
     for (i = 0; i < NUM_OBJECTS; i++) {
         pair = i >> 1;
         word = save_buf[BASE_OBJ_LOC + pair];
-        if (i & 1) {
-            g_obj_loc[i] = (u8)(word & 0xFF);
-        } else {
-            g_obj_loc[i] = (u8)(word >> 8);
-        }
+        g_obj_loc[i] = (u8)((i & 1) ? (word & 0xFF) : (word >> 8));
     }
 
-    /* obj_flags */
     for (i = 0; i < NUM_OBJECTS; i++) {
         pair = i >> 1;
         word = save_buf[BASE_OBJ_FLAGS + pair];
-        if (i & 1) {
-            g_obj_flags[i] = (u8)(word & 0xFF);
-        } else {
-            g_obj_flags[i] = (u8)(word >> 8);
-        }
+        g_obj_flags[i] = (u8)((i & 1) ? (word & 0xFF) : (word >> 8));
     }
 
-    /* room_flags */
+    /* Restore room flags: start from base flags (ABOVE/DARK from ROM)
+     * then apply saved VISITED bits on top */
     for (i = 0; i < NUM_ROOMS; i++) {
         u8 word_off;
         u8 bit_off;
-        word_off = i >> 2;
-        bit_off  = (u8)((i & 3) << 2);
-        g_room_flags[i] = (u8)((save_buf[BASE_ROOM_FLAGS + word_off] >> bit_off) & 0x0F);
+        word_off = i >> 4;
+        bit_off  = i & 15;
+        g_room_flags[i] = g_room_base_flags[i];
+        if (save_buf[BASE_ROOM_VISITED + word_off] & (u16)(1 << bit_off)) {
+            g_room_flags[i] |= ROOM_VISITED;
+        }
     }
+    /* Re-apply runtime lit overrides */
+    g_room_flags[ROOM_KITCHEN]     |= ROOM_ABOVE;
+    g_room_flags[ROOM_LIVING_ROOM] |= ROOM_ABOVE;
+    g_room_flags[ROOM_TORCH_ROOM]  |= ROOM_ABOVE;
 
     text_println("Game restored.");
 }
