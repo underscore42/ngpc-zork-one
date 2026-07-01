@@ -693,18 +693,30 @@ void engine_describe_room(u8 rid, u8 force_long) {
         g_room_flags[rid] |= ROOM_VISITED;
     }
 
-    /* List objects in room - skip pure scenery (flags==0, no score) */
+    /* List objects in room - skip scenery, but include items in open NODESC containers */
     shown = 0;
     for (i = 0; i < NUM_OBJECTS; i++) {
-        if (g_obj_loc[i] != rid) continue;
-        if (g_obj_flags[i] & OBJ_NODESC) continue;
-        if (g_obj_flags[i] == 0 && g_obj_score[i] == 0) continue;
-        if (!shown) {
-            text_println("You can see:");
-            shown = 1;
+        u8 iloc;
+        u8 icont;
+        iloc = g_obj_loc[i];
+        /* Directly in room */
+        if (iloc == rid) {
+            if (g_obj_flags[i] & OBJ_NODESC) continue;
+            if (g_obj_flags[i] == 0 && g_obj_score[i] == 0) continue;
+            if (!shown) { text_println("You can see:"); shown = 1; }
+            text_print("  ");
+            text_println(g_obj_name[i]);
         }
-        text_print("  ");
-        text_println(g_obj_name[i]);
+        /* In an open NODESC container in room (e.g. kitchen table) */
+        else if (iloc >= NUM_ROOMS && iloc < NUM_OBJECTS) {
+            icont = iloc;
+            if (!(g_obj_flags[icont] & OBJ_NODESC)) continue;
+            if (!(g_obj_flags[icont] & OBJ_OPEN)) continue;
+            if (g_obj_loc[icont] != rid) continue;
+            if (!shown) { text_println("You can see:"); shown = 1; }
+            text_print("  ");
+            text_println(g_obj_name[i]);
+        }
     }
 }
 
@@ -739,6 +751,17 @@ static void do_go(u8 dir) {
         text_println("The troll blocks your");
         text_println("way, waving his axe!");
         return;
+    }
+    /* Trap door: D from living room only works when trap door is open */
+    if (g_player_room == ROOM_LIVING_ROOM && dir == DIR_DOWN) {
+        if (g_obj_loc[OBJ_TRAP_DOOR] == ROOM_LIVING_ROOM
+            && (g_obj_flags[OBJ_TRAP_DOOR] & OBJ_OPEN)) {
+            dest = ROOM_CELLAR;
+        } else {
+            text_println("There is no way");
+            text_println("down from here.");
+            return;
+        }
     }
     /* Cyclops blocks east exit from cyclops room */
     if (g_player_room == ROOM_CYCLOPS_ROOM && dir == DIR_EAST && g_cyclops_here) {
@@ -845,6 +868,7 @@ static void do_examine(u8 obj) {
         u8 f;
         f = 0;
         for (i = 0; i < NUM_OBJECTS; i++) {
+            if (OBJ_TROPHY_CASE < NUM_ROOMS) break;  /* safety */
             if (g_obj_loc[i] != OBJ_TROPHY_CASE) continue;
             if (!f) { text_println("Inside:"); f = 1; }
             text_print("  ");
@@ -862,16 +886,25 @@ static void do_open(u8 obj) {
     if (!(g_obj_flags[obj] & OBJ_CONTAINER)) { text_println("Can't open that."); return; }
     if (g_obj_flags[obj] & OBJ_OPEN) { text_println("Already open."); return; }
     g_obj_flags[obj] |= OBJ_OPEN;
+    /* Trap door: enable D exit from living room to cellar */
+    if (obj == OBJ_TRAP_DOOR) {
+        /* Patch the exit table in RAM - Living Room D = Cellar (16) */
+        /* g_room_exits is const ROM - can't patch directly */
+        /* Instead handle in do_go: check trap door state */
+    }
     {
         u8 i;
         u8 f;
         f = 0;
         text_println("Opened.");
-        for (i = 0; i < NUM_OBJECTS; i++) {
-            if (g_obj_loc[i] != obj) continue;
-            if (!f) { text_println("Inside:"); f = 1; }
-            text_print("  ");
-            text_println(g_obj_name[i]);
+        /* Only list contents if obj is truly a container object (not a room index) */
+        if (obj >= NUM_ROOMS) {
+            for (i = 0; i < NUM_OBJECTS; i++) {
+                if (g_obj_loc[i] != obj) continue;
+                if (!f) { text_println("Inside:"); f = 1; }
+                text_print("  ");
+                text_println(g_obj_name[i]);
+            }
         }
         if (!f) text_println("(empty)");
     }
@@ -1065,6 +1098,7 @@ void engine_execute(u8 verb, u8 obj) {
             if (obj == OBJ_RUG && g_player_room == ROOM_LIVING_ROOM) {
                 g_obj_loc[OBJ_RUG] = LOC_GONE;
                 g_obj_loc[OBJ_TRAP_DOOR] = ROOM_LIVING_ROOM;
+                g_obj_flags[OBJ_TRAP_DOOR] = OBJ_CONTAINER;
                 text_println("You move the rug,");
                 text_println("revealing a trap");
                 text_println("door in the floor!");

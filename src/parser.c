@@ -85,9 +85,9 @@ void parser_build_nouns(void) {
 
         /* Skip removed objects */
         if (loc == LOC_GONE) continue;
-        /* Skip scenery objects */
-        if (flags & OBJ_NODESC) continue;
-        if (flags == 0 && g_obj_score[i] == 0) continue;
+        /* Skip scenery objects (but MOVE/OPEN can target them explicitly) */
+        if ((flags & OBJ_NODESC) && v != V_MOVE && v != V_OPEN && v != V_EXAMINE) continue;
+        if (flags == 0 && g_obj_score[i] == 0 && v != V_MOVE && v != V_ATTACK) continue;
 
         /* Object must be accessible: in current room, or in player inventory,
          * or inside an open container in current room */
@@ -132,9 +132,14 @@ void parser_build_nouns(void) {
             if (i != OBJ_RUG) continue;
         }
         if (v == V_ATTACK) {
-            /* Only attack troll when in troll room */
-            if (i == OBJ_TROLL && g_player_room != ROOM_TROLL_ROOM) continue;
-            if (i == OBJ_TROLL && !g_troll_alive) continue;
+            /* ATTACK: only show valid targets (troll, cyclops etc) not weapons */
+            if (flags & OBJ_TAKEABLE) continue;  /* skip weapons/items */
+            if (i == OBJ_TROLL) {
+                if (g_player_room != ROOM_TROLL_ROOM) continue;
+                if (!g_troll_alive) continue;
+            } else {
+                continue;  /* only troll for now */
+            }
         }
         if (v == V_CLIMB) {
             if (flags & OBJ_TAKEABLE) continue;
