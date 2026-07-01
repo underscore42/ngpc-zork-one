@@ -81,6 +81,18 @@ void main(void) {
     engine_describe_room(ROOM_WEST_OF_HOUSE, 1);
     engine_refresh_screen();
 
+    /* Flush A-press from title screen - wait for button release */
+    {
+        u8 held;
+        held = 1;
+        while (held) {
+            WaitVsync();
+            held = JOYPAD & J_A;
+        }
+        /* One more frame to let pad_press clear in parser */
+        WaitVsync();
+    }
+
     for (;;) {
         WaitVsync();
         WATCHDOG = WATCHDOG_CLEAR;

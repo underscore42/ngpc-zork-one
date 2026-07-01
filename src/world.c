@@ -672,14 +672,14 @@ const u8 g_obj_default_flags[NUM_OBJECTS] = {
     OBJ_TAKEABLE | OBJ_WEAPON,  /*  21 AXE */
     OBJ_TAKEABLE,  /*  22 BOLT */
     OBJ_TAKEABLE,  /*  23 BUBBLE */
-    OBJ_CONTAINER | OBJ_OPEN,  /*  24 ALTAR */
+    OBJ_CONTAINER | OBJ_OPEN | OBJ_NODESC,  /*  24 ALTAR */
     OBJ_TAKEABLE | OBJ_CONTAINER,  /*  25 BOOK */
     OBJ_TAKEABLE,  /*  26 BROKEN-LAMP */
     OBJ_TAKEABLE | OBJ_WEAPON,  /*  27 SCEPTRE */
     OBJ_TAKEABLE,  /*  28 TIMBERS */
     0,  /*  29 SLIDE */
-    OBJ_CONTAINER | OBJ_OPEN,  /*  30 KITCHEN-TABLE */
-    OBJ_CONTAINER | OBJ_OPEN,  /*  31 ATTIC-TABLE */
+    OBJ_CONTAINER | OBJ_OPEN | OBJ_NODESC,  /*  30 KITCHEN-TABLE */
+    OBJ_CONTAINER | OBJ_OPEN | OBJ_NODESC,  /*  31 ATTIC-TABLE */
     OBJ_TAKEABLE | OBJ_CONTAINER,  /*  32 SANDWICH-BAG */
     OBJ_TAKEABLE | OBJ_CONTAINER | OBJ_OPEN,  /*  33 TOOL-CHEST */
     0,  /*  34 YELLOW-BUTTON */
@@ -729,7 +729,7 @@ const u8 g_obj_default_flags[NUM_OBJECTS] = {
     OBJ_TAKEABLE,  /*  78 BAR */
     OBJ_TAKEABLE,  /*  79 POT-OF-GOLD */
     0,  /*  80 PRAYER */
-    0,  /*  81 RAILING */
+    OBJ_NODESC,  /*  81 RAILING */
     0,  /*  82 RAINBOW */
     0,  /*  83 RIVER */
     OBJ_TAKEABLE | OBJ_CONTAINER,  /*  84 BUOY */
@@ -854,7 +854,7 @@ const u8 g_obj_score[NUM_OBJECTS] = {
     15,  /*  78 BAR */
     20,  /*  79 POT-OF-GOLD */
     0,  /*  80 PRAYER */
-    0,  /*  81 RAILING */
+    OBJ_NODESC,  /*  81 RAILING */
     0,  /*  82 RAINBOW */
     0,  /*  83 RIVER */
     0,  /*  84 BUOY */
