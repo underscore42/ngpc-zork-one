@@ -92,13 +92,14 @@ void parser_build_nouns(void) {
         /* Object must be accessible: in current room, or in player inventory,
          * or inside an open container in current room */
         if (loc != g_player_room && loc != LOC_PLAYER) {
-            /* Inside open container? loc must be object ID (>= NUM_ROOMS) */
+            /* Inside open container? Check OBJ_CONTAINER flag */
             u8 cont_loc;
             u8 cont_flags;
-            if (loc < NUM_ROOMS || loc >= NUM_OBJECTS) continue;
-            cont_loc   = g_obj_loc[loc];
+            if (loc >= NUM_OBJECTS) continue;
             cont_flags = g_obj_flags[loc];
+            if (!(cont_flags & OBJ_CONTAINER)) continue;
             if (!(cont_flags & OBJ_OPEN)) continue;
+            cont_loc = g_obj_loc[loc];
             if (cont_loc != g_player_room && cont_loc != LOC_PLAYER) continue;
         }
 

@@ -46,8 +46,8 @@ static u8 obj_accessible(u8 obj) {
     if (loc == LOC_GONE) return 0;
     if (loc == g_player_room) return 1;
     if (loc == LOC_PLAYER) return 1;
-    /* Inside open container? loc must be an object ID (>= NUM_ROOMS) */
-    if (loc >= NUM_ROOMS && loc < NUM_OBJECTS) {
+    /* Inside open container? Check if loc is a container object */
+    if (loc < NUM_OBJECTS && (g_obj_flags[loc] & OBJ_CONTAINER)) {
         cont = loc;
         if (!(g_obj_flags[cont] & OBJ_OPEN)) return 0;
         if (g_obj_loc[cont] == g_player_room) return 1;
@@ -708,7 +708,7 @@ void engine_describe_room(u8 rid, u8 force_long) {
             text_println(g_obj_name[i]);
         }
         /* In an open NODESC container in room (e.g. kitchen table) */
-        else if (iloc >= NUM_ROOMS && iloc < NUM_OBJECTS) {
+        else if (iloc < NUM_OBJECTS && (g_obj_flags[iloc] & OBJ_CONTAINER)) {
             icont = iloc;
             if (!(g_obj_flags[icont] & OBJ_NODESC)) continue;
             if (!(g_obj_flags[icont] & OBJ_OPEN)) continue;
@@ -897,8 +897,8 @@ static void do_open(u8 obj) {
         u8 f;
         f = 0;
         text_println("Opened.");
-        /* Only list contents if obj is truly a container object (not a room index) */
-        if (obj >= NUM_ROOMS) {
+        /* Only list contents if obj has OBJ_CONTAINER flag */
+        if (g_obj_flags[obj] & OBJ_CONTAINER) {
             for (i = 0; i < NUM_OBJECTS; i++) {
                 if (g_obj_loc[i] != obj) continue;
                 if (!f) { text_println("Inside:"); f = 1; }
