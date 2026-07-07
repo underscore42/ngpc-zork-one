@@ -11,5 +11,6 @@ void engine_do_inventory(void);
 void engine_refresh_screen(void);
 void engine_describe_room(u8 room_id, u8 force_long);
 void engine_add_score(u16 pts);
+u8   room_is_lit_pub(u8 rid);
 
 #endif

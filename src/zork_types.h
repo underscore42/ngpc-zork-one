@@ -110,7 +110,11 @@ extern const char g_dir_names[NUM_DIRS][6];
 #define V_PRAY          36
 #define V_ECHO          37
 #define V_CROSS         38
-#define NUM_VERBS       39
+#define V_SAY           39
+#define V_UNLOCK        40
+#define V_WIND          41
+#define V_TURN          42
+#define NUM_VERBS       43
 
 /* ---- Room IDs (auto-generated from ZIL source) ---- */
 #define ROOM_WEST_OF_HOUSE                            0
@@ -379,11 +383,23 @@ extern u16  g_moves;
 extern u8   g_lamp_fuel;
 extern u8   g_dead;
 extern u8   g_troll_alive;
+extern u8   g_rope_tied;
+extern u8   g_rainbow_solid;
+extern u8   g_lamp_dead;
 extern u8   g_thief_alive;
 extern u8   g_cyclops_here;
+extern u8   g_candle_fuel;
+extern u8   g_candles_dead;
+extern u8   g_in_boat;
+extern u8   g_bell_rung;
+extern u8   g_ghosts_gone;
+extern u8   g_won;
+extern u8   g_knows_word;
 extern u8   g_obj_loc[NUM_OBJECTS];
 extern u8   g_obj_flags[NUM_OBJECTS];
 extern u8   g_room_flags[NUM_ROOMS];
+
+/* ---- Winning: see all_treasures_home() in engine.c ---- */
 
 /* ---- Parser state (defined in parser.c) ---- */
 extern u8   g_input_mode;

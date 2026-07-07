@@ -1437,9 +1437,12 @@ u8 SwapPlanes(void) {
 };
 
 void Flash(void *data) {
-	__ASM("SAVEOFFSET	EQU	0x1e0000");
+	__ASM("SAVEOFFSET	EQU	0x30000");	// block 3: last 64KB of the 256KB ROM image.
+	// Was 0x1e0000 - beyond a 256KB ROM, so Mednafen (cart = ROM file size)
+	// had nowhere to write and reads returned open bus. In-image saves work
+	// in emulator AND on hardware. ROM code must stay below 0x30000 (192KB).
 
-	__ASM("BLOCK_NB		EQU	30");
+	__ASM("BLOCK_NB		EQU	3");
 	__ASM("VECT_FLASHWRITE	EQU	6");
 	__ASM("VECT_FLASHERS	EQU	8");
 	__ASM("rWDCR		EQU	0x6f");
@@ -1454,7 +1457,7 @@ void Flash(void *data) {
 
 	// Then write data
 	__ASM("	ld	ra3,0");
-	__ASM("	ld	rbc3,1");	// 256 bytes
+	__ASM("	ld	rbc3,2");	// 2x256=512 bytes - BC=1 unreliable on real hw (NgpCraft 5.1); caller buffer MUST be >=512 bytes
 	__ASM("	ld	xhl,(xsp+4)");
 	__ASM("	ld	xhl3,xhl");
 	__ASM("	ld	xde3,SAVEOFFSET");
@@ -1466,18 +1469,18 @@ void Flash(void *data) {
 }
 
 void GetSavedData(void *data) {
-	u32 *ptr = (u32*)(0x200000+0x1e0000);
+	u32 *ptr = (u32*)(0x200000+0x30000);
 	u32 *ptrData = (u32*)data;
 	u8 i;
 	if (*ptr == MAGIC_NB) // Data saved
 	{
-		for (i=0;i<64;i++)
+		for (i=0;i<128;i++)	/* 512 bytes to match Flash() */
 			ptrData[i] = ptr[i];
 	}
 	else // No data
 	{
 		ptrData[0] = MAGIC_NB;
-		for (i=1;i<64;i++)
+		for (i=1;i<128;i++)
 			ptrData[i] = 0;
 	}
 }

@@ -16,6 +16,8 @@
 #include "engine.h"
 #include "wizard.h"
 #include "script.h"
+#include "thief.h"
+#include "zork_sound.h"
 
 /* Global input state */
 static char s_empty[1] = {0};
@@ -51,7 +53,7 @@ static u8 verb_needs_noun(u8 v) {
     if (v == V_SAVE)      return 0;
     if (v == V_RESTORE)   return 0;
     if (v == V_QUIT)      return 0;
-    if (v == V_ENTER)     return 0;
+    if (v == V_SAY)       return 0;
     return 1;
 }
 
@@ -86,20 +88,23 @@ void parser_build_nouns(void) {
         /* Skip removed objects */
         if (loc == LOC_GONE) continue;
         /* Skip scenery objects (but MOVE/OPEN can target them explicitly) */
-        if ((flags & OBJ_NODESC) && v != V_MOVE && v != V_OPEN && v != V_EXAMINE) continue;
+        if ((flags & OBJ_NODESC) && v != V_MOVE && v != V_OPEN && v != V_EXAMINE
+            && v != V_UNLOCK && v != V_TURN && v != V_ENTER) continue;
         if (flags == 0 && g_obj_score[i] == 0 && v != V_MOVE && v != V_ATTACK) continue;
 
         /* Object must be accessible: in current room, or in player inventory,
          * or inside an open container in current room */
         if (loc != g_player_room && loc != LOC_PLAYER) {
-            /* Inside open container? Check OBJ_CONTAINER flag */
+            /* Inside open container? loc = NUM_ROOMS + container_obj_idx */
             u8 cont_loc;
             u8 cont_flags;
-            if (loc >= NUM_OBJECTS) continue;
-            cont_flags = g_obj_flags[loc];
-            if (!(cont_flags & OBJ_CONTAINER)) continue;
+            u8 cont_idx;
+            if (loc < NUM_ROOMS) continue;  /* room index, not container */
+            if (loc >= (u8)(NUM_ROOMS + NUM_OBJECTS)) continue;
+            cont_idx = loc - NUM_ROOMS;
+            cont_flags = g_obj_flags[cont_idx];
             if (!(cont_flags & OBJ_OPEN)) continue;
-            cont_loc = g_obj_loc[loc];
+            cont_loc = g_obj_loc[cont_idx];
             if (cont_loc != g_player_room && cont_loc != LOC_PLAYER) continue;
         }
 
@@ -125,9 +130,26 @@ void parser_build_nouns(void) {
             if (loc != LOC_PLAYER) continue;
         }
         if (v == V_ENTER) {
-            /* ENTER - only show window when at Behind House */
-            if (i != OBJ_KITCHEN_WINDOW) continue;
-            if (g_player_room != ROOM_EAST_OF_HOUSE) continue;
+            /* ENTER - kitchen window at Behind House, or boat at Dam Base */
+            if (i == OBJ_KITCHEN_WINDOW) {
+                if (g_player_room != ROOM_EAST_OF_HOUSE) continue;
+            } else if (i == OBJ_INFLATED_BOAT) {
+                if (g_player_room != ROOM_DAM_BASE) continue;
+                if (loc != LOC_PLAYER) continue;
+            } else {
+                continue;
+            }
+        }
+        if (v == V_UNLOCK) {
+            if (!(flags & OBJ_LOCKED)) continue;
+        }
+        if (v == V_WIND) {
+            if (i != OBJ_CANARY) continue;
+            if (loc != LOC_PLAYER) continue;
+        }
+        if (v == V_TURN) {
+            if (i != OBJ_MACHINE_SWITCH) continue;
+            if (g_player_room != ROOM_MACHINE_ROOM) continue;
         }
         if (v == V_MOVE) {
             if (i != OBJ_RUG) continue;
@@ -138,8 +160,11 @@ void parser_build_nouns(void) {
             if (i == OBJ_TROLL) {
                 if (g_player_room != ROOM_TROLL_ROOM) continue;
                 if (!g_troll_alive) continue;
+            } else if (i == OBJ_THIEF) {
+                if (g_player_room != g_thief_room) continue;
+                if (!g_thief_alive) continue;
             } else {
-                continue;  /* only troll for now */
+                continue;
             }
         }
         if (v == V_CLIMB) {
@@ -209,6 +234,7 @@ void parser_tick(void) {
             if (((u8)(s_held_frames - REPEAT_DELAY)) % REPEAT_RATE == 0) do_ud = 1;
         }
         if (do_ud) {
+            if (g_pad_press & (J_UP | J_DOWN)) PlaySound(SND_TICK);
             if (g_pad_cur & J_UP)   text_scroll_up();
             if (g_pad_cur & J_DOWN) text_scroll_down();
             text_redraw();
@@ -256,8 +282,10 @@ void parser_tick(void) {
         if (g_pad_press & J_A) {
             if (!verb_needs_noun(g_verb_idx)) {
                 /* Execute immediately */
-                g_last_verb = g_verb_idx;
-                g_last_noun = 0;
+                if (g_verb_idx != V_AGAIN) {
+                    g_last_verb = g_verb_idx;
+                    g_last_noun = 0;
+                }
                 engine_execute(g_verb_idx, 0xFF);
                 engine_refresh_screen();
                 s_action_delay = 20;

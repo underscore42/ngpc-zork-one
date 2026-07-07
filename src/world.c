@@ -43,6 +43,10 @@ const char g_verb_names[NUM_VERBS][12] = {
     "PRAY",
     "ECHO",
     "CROSS",
+    "SAY",
+    "UNLOCK",
+    "WIND",
+    "TURN",
 };
 
 const char g_dir_names[NUM_DIRS][6] = {
@@ -183,7 +187,7 @@ const u8 g_room_exits[NUM_ROOMS * NUM_DIRS] = {
     12, 255, 255, 5, 255, 3, 255, 255, 255, 255,  /*   8 FOREST-3 */
     11, 2, 6, 5, 255, 255, 255, 255, 10, 255,  /*   9 PATH */
     255, 255, 255, 255, 255, 255, 255, 255, 255, 9,  /*  10 UP-A-TREE */
-    255, 9, 6, 5, 255, 255, 255, 255, 255, 255,  /*  11 GRATING-CLEARING */
+    255, 9, 6, 5, 255, 255, 255, 255, 255, 35,  /*  11 GRATING-CLEARING */
     6, 8, 92, 4, 255, 255, 255, 255, 255, 255,  /*  12 CLEARING */
     255, 255, 4, 15, 255, 255, 255, 255, 14, 20,  /*  13 KITCHEN */
     255, 255, 255, 255, 255, 255, 255, 255, 255, 13,  /*  14 ATTIC */
@@ -400,7 +404,7 @@ const u8 g_room_base_flags[NUM_ROOMS] = {
 const char g_obj_name[NUM_OBJECTS][16] = {
     "board",  /*   0 BOARD */
     "set of teeth",  /*   1 TEETH */
-    "surrounding wal",  /*   2 WALL */
+    "stone walls",  /*   2 WALL */
     "granite wall",  /*   3 GRANITE-WALL */
     "songbird",  /*   4 SONGBIRD */
     "white house",  /*   5 WHITE-HOUSE */
@@ -408,17 +412,17 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "tree",  /*   7 TREE */
     "mountain range",  /*   8 MOUNTAIN-RANGE */
     "water",  /*   9 GLOBAL-WATER */
-    "quantity of wat",  /*  10 WATER */
+    "water",  /*  10 WATER */
     "kitchen window",  /*  11 KITCHEN-WINDOW */
     "chimney",  /*  12 CHIMNEY */
-    "number of ghost",  /*  13 GHOSTS */
+    "ghosts",  /*  13 GHOSTS */
     "crystal skull",  /*  14 SKULL */
     "basket",  /*  15 LOWERED-BASKET */
     "basket",  /*  16 RAISED-BASKET */
     "lunch",  /*  17 LUNCH */
     "bat",  /*  18 BAT */
     "brass bell",  /*  19 BELL */
-    "red hot brass b",  /*  20 HOT-BELL */
+    "hot brass bell",  /*  20 HOT-BELL */
     "bloody axe",  /*  21 AXE */
     "bolt",  /*  22 BOLT */
     "green bubble",  /*  23 BUBBLE */
@@ -431,7 +435,7 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "kitchen table",  /*  30 KITCHEN-TABLE */
     "table",  /*  31 ATTIC-TABLE */
     "brown sack",  /*  32 SANDWICH-BAG */
-    "group of tool c",  /*  33 TOOL-CHEST */
+    "tool chests",  /*  33 TOOL-CHEST */
     "yellow button",  /*  34 YELLOW-BUTTON */
     "brown button",  /*  35 BROWN-BUTTON */
     "red button",  /*  36 RED-BUTTON */
@@ -452,13 +456,13 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "crack",  /*  51 CRACK */
     "gold coffin",  /*  52 COFFIN */
     "grating",  /*  53 GRATE */
-    "hand-held air p",  /*  54 PUMP */
+    "air pump",  /*  54 PUMP */
     "huge diamond",  /*  55 DIAMOND */
     "jade figurine",  /*  56 JADE */
     "nasty knife",  /*  57 KNIFE */
     "skeleton",  /*  58 BONES */
-    "burned-out lant",  /*  59 BURNED-OUT-LANTERN */
-    "leather bag of ",  /*  60 BAG-OF-COINS */
+    "dead lantern",  /*  59 BURNED-OUT-LANTERN */
+    "bag of coins",  /*  60 BAG-OF-COINS */
     "brass lantern",  /*  61 LAMP */
     "large emerald",  /*  62 EMERALD */
     "leaflet",  /*  63 ADVERTISEMENT */
@@ -471,11 +475,11 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "mirror",  /*  70 MIRROR-1 */
     "painting",  /*  71 PAINTING */
     "pair of candles",  /*  72 CANDLES */
-    "small piece of ",  /*  73 GUNK */
+    "gunk",  /*  73 GUNK */
     "pile of bodies",  /*  74 BODIES */
     "pile of leaves",  /*  75 LEAVES */
     "punctured boat",  /*  76 PUNCTURED-BOAT */
-    "pile of plastic",  /*  77 INFLATABLE-BOAT */
+    "plastic pile",  /*  77 INFLATABLE-BOAT */
     "platinum bar",  /*  78 BAR */
     "pot of gold",  /*  79 POT-OF-GOLD */
     "prayer",  /*  80 PRAYER */
@@ -486,13 +490,13 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "rope",  /*  85 ROPE */
     "rusty knife",  /*  86 RUSTY-KNIFE */
     "sand",  /*  87 SAND */
-    "sapphire-encrus",  /*  88 BRACELET */
+    "sapphire band",  /*  88 BRACELET */
     "screwdriver",  /*  89 SCREWDRIVER */
     "skeleton key",  /*  90 KEYS */
     "shovel",  /*  91 SHOVEL */
-    "small pile of c",  /*  92 COAL */
+    "pile of coal",  /*  92 COAL */
     "wooden ladder",  /*  93 LADDER */
-    "beautiful jewel",  /*  94 SCARAB */
+    "jeweled scarab",  /*  94 SCARAB */
     "large bag",  /*  95 LARGE-BAG */
     "stiletto",  /*  96 STILETTO */
     "switch",  /*  97 MACHINE-SWITCH */
@@ -505,21 +509,21 @@ const char g_obj_name[NUM_OBJECTS][16] = {
     "torch",  /* 104 TORCH */
     "tour guidebook",  /* 105 GUIDE */
     "troll",  /* 106 TROLL */
-    "trunk of jewels",  /* 107 TRUNK */
+    "jeweled trunk",  /* 107 TRUNK */
     "tube",  /* 108 TUBE */
-    "viscous materia",  /* 109 PUTTY */
-    "wall with engra",  /* 110 ENGRAVINGS */
-    "ZORK owner's ma",  /* 111 OWNERS-MANUAL */
+    "viscous goo",  /* 109 PUTTY */
+    "engraved wall",  /* 110 ENGRAVINGS */
+    "ZORK manual",  /* 111 OWNERS-MANUAL */
     "cliff",  /* 112 CLIMBABLE-CLIFF */
     "white cliffs",  /* 113 WHITE-CLIFF */
     "wrench",  /* 114 WRENCH */
     "control panel",  /* 115 CONTROL-PANEL */
     "bird's nest",  /* 116 NEST */
-    "jewel-encrusted",  /* 117 EGG */
-    "broken jewel-en",  /* 118 BROKEN-EGG */
-    "beautiful brass",  /* 119 BAUBLE */
-    "golden clockwor",  /* 120 CANARY */
-    "broken clockwor",  /* 121 BROKEN-CANARY */
+    "jeweled egg",  /* 117 EGG */
+    "broken egg",  /* 118 BROKEN-EGG */
+    "brass bauble",  /* 119 BAUBLE */
+    "gold canary",  /* 120 CANARY */
+    "broken canary",  /* 121 BROKEN-CANARY */
 };
 
 const u8 g_obj_default_loc[NUM_OBJECTS] = {
@@ -570,13 +574,13 @@ const u8 g_obj_default_loc[NUM_OBJECTS] = {
     73,  /*  44 DAM */
     15,  /*  45 TRAP-DOOR */
     LOC_GONE,  /*  46 BOARDED-WINDOW */
-    OBJ_NODESC,  /*  47 FRONT-DOOR */
+    LOC_GONE,  /*  47 FRONT-DOOR (scenery only, never a live location) */
     1,  /*  48 BARROW-DOOR */
     1,  /*  49 BARROW */
     30,  /*  50 BOTTLE */
     LOC_GONE,  /*  51 CRACK */
     68,  /*  52 COFFIN */
-    LOC_GONE,  /*  53 GRATE */
+    35,  /*  53 GRATE (visible from both Grating Room and Grating Clearing) */
     46,  /*  54 PUMP */
     LOC_GONE,  /*  55 DIAMOND */
     95,  /*  56 JADE */
@@ -640,11 +644,11 @@ const u8 g_obj_default_loc[NUM_OBJECTS] = {
     75,  /* 114 WRENCH */
     73,  /* 115 CONTROL-PANEL */
     10,  /* 116 NEST */
-    116,  /* 117 EGG */
+    226,  /* 117 EGG = NUM_ROOMS(110) + OBJ_NEST(116), inside the nest */
     LOC_GONE,  /* 118 BROKEN-EGG */
     LOC_GONE,  /* 119 BAUBLE */
-    117,  /* 120 CANARY */
-    118,  /* 121 BROKEN-CANARY */
+    227,  /* 120 CANARY = NUM_ROOMS(110) + OBJ_EGG(117), inside the egg */
+    LOC_GONE,  /* 121 BROKEN-CANARY (spawned only if thief breaks egg) */
 };
 
 const u8 g_obj_default_flags[NUM_OBJECTS] = {
@@ -701,7 +705,7 @@ const u8 g_obj_default_flags[NUM_OBJECTS] = {
     OBJ_TAKEABLE | OBJ_CONTAINER,  /*  50 BOTTLE */
     OBJ_NODESC,  /*  51 CRACK */
     OBJ_TAKEABLE | OBJ_CONTAINER,  /*  52 COFFIN */
-    OBJ_NODESC,  /*  53 GRATE */
+    OBJ_NODESC | OBJ_LOCKED,  /*  53 GRATE */
     OBJ_TAKEABLE,  /*  54 PUMP */
     OBJ_TAKEABLE,  /*  55 DIAMOND */
     OBJ_TAKEABLE,  /*  56 JADE */

@@ -6,6 +6,7 @@
 #include "text.h"
 #include "zork_save.h"
 #include "wizard.h"
+#include "thief.h"
 
 /* Mutable state */
 u8  g_player_room;
@@ -16,12 +17,25 @@ u8  g_dead;
 u8  g_troll_alive;
 u8  g_thief_alive;
 u8  g_cyclops_here;
+u8  g_rope_tied;
+u8  g_rainbow_solid;
+u8  g_lamp_dead;
+u8  g_candle_fuel;
+u8  g_candles_dead;
+u8  g_in_boat;
+u8  g_bell_rung;
+u8  g_ghosts_gone;
+u8  g_won;
+u8  g_knows_word;
 u8  g_obj_loc[NUM_OBJECTS];
 u8  g_obj_flags[NUM_OBJECTS];
 u8  g_room_flags[NUM_ROOMS];
 
 /* ---- Helpers ---- */
 
+u8 room_is_lit_pub(u8 rid);
+static u8 room_is_lit(u8 rid);
+u8 room_is_lit_pub(u8 rid) { return room_is_lit(rid); }
 static u8 room_is_lit(u8 rid) {
     u8 i;
     if (wizard_is_lit()) return 1;
@@ -46,9 +60,9 @@ static u8 obj_accessible(u8 obj) {
     if (loc == LOC_GONE) return 0;
     if (loc == g_player_room) return 1;
     if (loc == LOC_PLAYER) return 1;
-    /* Inside open container? Check if loc is a container object */
-    if (loc < NUM_OBJECTS && (g_obj_flags[loc] & OBJ_CONTAINER)) {
-        cont = loc;
+    /* Inside open container? loc = NUM_ROOMS + container_obj_idx */
+    if (loc >= NUM_ROOMS && loc < (u8)(NUM_ROOMS + NUM_OBJECTS)) {
+        cont = loc - NUM_ROOMS;
         if (!(g_obj_flags[cont] & OBJ_OPEN)) return 0;
         if (g_obj_loc[cont] == g_player_room) return 1;
         if (g_obj_loc[cont] == LOC_PLAYER)    return 1;
@@ -86,12 +100,14 @@ static void engine_print_room_desc(u8 rid) {
         case ROOM_NORTH_OF_HOUSE:
             text_println("North side of white");
             text_println("house. Windows are");
-            text_println("boarded. Path N.");
+            text_println("boarded. Path N,");
+            text_println("house to west.");
             break;
         case ROOM_SOUTH_OF_HOUSE:
             text_println("South side of white");
             text_println("house. No door here,");
             text_println("windows boarded.");
+            text_println("House to north.");
             break;
         case ROOM_EAST_OF_HOUSE:
             text_println("Behind the white");
@@ -200,16 +216,34 @@ static void engine_print_room_desc(u8 rid) {
             break;
         case ROOM_GRATING_ROOM:
             text_println("Small room. An iron");
-            text_println("grating is in the");
-            text_println("floor to the SW.");
+            text_println("grating is set into");
+            text_println("the ceiling above.");
+            if (g_obj_flags[OBJ_GRATE] & OBJ_LOCKED) {
+                text_println("It looks locked.");
+            } else if (!(g_obj_flags[OBJ_GRATE] & OBJ_OPEN)) {
+                text_println("It is unlocked but");
+                text_println("closed.");
+            } else {
+                text_println("It stands open.");
+            }
             break;
         case ROOM_CYCLOPS_ROOM:
             text_println("A low-ceilinged room.");
             if (g_cyclops_here) {
                 text_println("A giant one-eyed");
                 text_println("cyclops blocks E.");
+                if (g_knows_word) {
+                    text_println("You know his name...");
+                } else {
+                    text_println("If only you knew");
+                    text_println("something to scare");
+                    text_println("it with.");
+                }
             } else {
-                text_println("The cyclops is gone.");
+                text_println("The cyclops smashed");
+                text_println("a hole above you");
+                text_println("leading up, and the");
+                text_println("way east is clear.");
             }
             break;
         case ROOM_STRANGE_PASSAGE:
@@ -308,8 +342,16 @@ static void engine_print_room_desc(u8 rid) {
             break;
         case ROOM_ENTRANCE_TO_HADES:
             text_println("Entrance to Hades.");
-            text_println("Spirits bar the way");
-            text_println("to the south.");
+            if (!g_ghosts_gone) {
+                text_println("Spirits bar the way");
+                text_println("south. Ring bell,");
+                text_println("light candles, then");
+                text_println("read the book.");
+            } else {
+                text_println("The spirits are gone.");
+                text_println("The way south is");
+                text_println("clear.");
+            }
             break;
         case ROOM_LAND_OF_LIVING_DEAD:
             text_println("Land of the Dead.");
@@ -471,7 +513,9 @@ static void engine_print_room_desc(u8 rid) {
         case ROOM_MACHINE_ROOM:
             text_println("A machine room.");
             text_println("A large machine");
-            text_println("with a lid.");
+            text_println("with a lid, and a");
+            text_println("switch. Best not to");
+            text_println("touch it bare-handed.");
             break;
         case ROOM_MINE_1:
         case ROOM_MINE_2:
@@ -707,10 +751,10 @@ void engine_describe_room(u8 rid, u8 force_long) {
             text_print("  ");
             text_println(g_obj_name[i]);
         }
-        /* In an open NODESC container in room (e.g. kitchen table) */
-        else if (iloc < NUM_OBJECTS && (g_obj_flags[iloc] & OBJ_CONTAINER)) {
-            icont = iloc;
-            if (!(g_obj_flags[icont] & OBJ_NODESC)) continue;
+        /* In an open container in room: loc = NUM_ROOMS + cont_idx.
+         * Applies to scenery containers (table) AND portable ones (nest). */
+        else if (iloc >= NUM_ROOMS && iloc < (u8)(NUM_ROOMS + NUM_OBJECTS)) {
+            icont = iloc - NUM_ROOMS;
             if (!(g_obj_flags[icont] & OBJ_OPEN)) continue;
             if (g_obj_loc[icont] != rid) continue;
             if (!shown) { text_println("You can see:"); shown = 1; }
@@ -741,6 +785,58 @@ void engine_do_inventory(void) {
     if (!shown) text_println("Empty-handed.");
 }
 
+/* ---- Win check: true once every treasure has reached the trophy case ---- */
+/* EGG/BROKEN-EGG and CANARY/BROKEN-CANARY are either-or: whichever
+ * variant the player ends up with still counts toward completion. */
+static u8 all_treasures_home(void) {
+    u8 i;
+    u8 case_loc;
+    case_loc = (u8)(NUM_ROOMS + OBJ_TROPHY_CASE);
+    for (i = 0; i < NUM_OBJECTS; i++) {
+        if (g_obj_target[i] != OBJ_TROPHY_CASE) continue;
+        if (g_obj_score[i] == 0) continue;
+        if (i == OBJ_BROKEN_EGG || i == OBJ_BROKEN_CANARY) continue;
+        if (i == OBJ_EGG) {
+            if (g_obj_loc[OBJ_EGG] != case_loc
+                && g_obj_loc[OBJ_BROKEN_EGG] != case_loc) return 0;
+            continue;
+        }
+        if (i == OBJ_CANARY) {
+            if (g_obj_loc[OBJ_CANARY] != case_loc
+                && g_obj_loc[OBJ_BROKEN_CANARY] != case_loc) return 0;
+            continue;
+        }
+        if (g_obj_loc[i] != case_loc) return 0;
+    }
+    return 1;
+}
+
+static void check_win(void) {
+    if (g_won) return;
+    if (!all_treasures_home()) return;
+    g_won = 1;
+    text_newline();
+    text_println("*** Every treasure");
+    text_println("rests in the trophy");
+    text_println("case. You have won");
+    text_println("Zork I! ***");
+    text_print("Final score: ");
+    {
+        char sc[8];
+        u16 s;
+        u8 p;
+        s = g_score;
+        sc[7] = 0;
+        sc[6] = '0' + s % 10; s = s / 10;
+        sc[5] = '0' + s % 10; s = s / 10;
+        sc[4] = '0' + s % 10; s = s / 10;
+        sc[3] = '0' + s % 10;
+        p = 3;
+        while (p < 6 && sc[p] == '0') p++;
+        text_println(sc + p);
+    }
+}
+
 /* ---- GO ---- */
 static void do_go(u8 dir) {
     u8 dest;
@@ -763,30 +859,116 @@ static void do_go(u8 dir) {
             return;
         }
     }
+    /* Chasm: east exit only with rope tied */
+    if (g_player_room == ROOM_CHASM_ROOM && dir == DIR_EAST) {
+        if (!g_rope_tied) {
+            text_println("It's too far to");
+            text_println("jump. You need a");
+            text_println("rope.");
+            return;
+        }
+    }
     /* Cyclops blocks east exit from cyclops room */
     if (g_player_room == ROOM_CYCLOPS_ROOM && dir == DIR_EAST && g_cyclops_here) {
         text_println("The cyclops blocks");
         text_println("your way!");
         return;
     }
+    /* Cyclops room UP (to Treasure Room) only opens once cyclops has fled */
+    if (g_player_room == ROOM_CYCLOPS_ROOM && dir == DIR_UP && g_cyclops_here) {
+        text_println("There's no way up");
+        text_println("from here yet.");
+        return;
+    }
+    /* Grating Room UP: only once the grate has been unlocked and opened */
+    if (g_player_room == ROOM_GRATING_ROOM && dir == DIR_UP) {
+        if (!(g_obj_flags[OBJ_GRATE] & OBJ_OPEN)) {
+            text_println("The grating above");
+            text_println("you is closed.");
+            return;
+        }
+    }
+    /* Grating Clearing DOWN: same grate, same condition */
+    if (g_player_room == ROOM_GRATING_CLEARING && dir == DIR_DOWN) {
+        if (!(g_obj_flags[OBJ_GRATE] & OBJ_OPEN)) {
+            text_println("The grating below");
+            text_println("is closed.");
+            return;
+        }
+    }
+    /* Entrance to Hades: spirits bar the way south until exorcised */
+    if (g_player_room == ROOM_ENTRANCE_TO_HADES && dir == DIR_SOUTH) {
+        if (!g_ghosts_gone) {
+            text_println("The spirits of the");
+            text_println("dead bar your way!");
+            return;
+        }
+    }
+    /* River rooms: only navigable while in the boat */
+    if (dir != DIR_UP && dir != DIR_DOWN
+        && (g_player_room == ROOM_RIVER_1 || g_player_room == ROOM_RIVER_2
+            || g_player_room == ROOM_RIVER_3 || g_player_room == ROOM_RIVER_4
+            || g_player_room == ROOM_RIVER_5)) {
+        if (!g_in_boat) {
+            text_println("You can't swim");
+            text_println("against the current.");
+            return;
+        }
+    }
     if (dest == NO_EXIT) {
         text_println("You can't go that");
         text_println("way.");
         return;
     }
+    /* Stepping onto dry land ends the boat trip */
+    if (g_in_boat && dest != ROOM_RIVER_1 && dest != ROOM_RIVER_2
+        && dest != ROOM_RIVER_3 && dest != ROOM_RIVER_4 && dest != ROOM_RIVER_5) {
+        g_in_boat = 0;
+        g_obj_loc[OBJ_INFLATED_BOAT] = dest;
+    }
     g_player_room = dest;
     g_moves = g_moves + 1;
     engine_describe_room(dest, 0);
-    /* Burn lamp */
+    /* Lamp fuel - ZIL thresholds: 100/70/15 moves with messages */
     if (g_obj_flags[OBJ_LAMP] & OBJ_LIT) {
         if (g_lamp_fuel > 0) g_lamp_fuel--;
         if (g_lamp_fuel == 0) {
             g_obj_flags[OBJ_LAMP] &= ~OBJ_LIT;
-            text_println("Your lamp dies.");
-        } else if (g_lamp_fuel < 20) {
-            text_println("The lamp flickers.");
+            g_lamp_dead = 1;
+            text_println("Your lamp has died.");
+            text_println("You are in the dark.");
+        } else if (g_lamp_fuel == 70) {
+            text_println("The lamp appears a");
+            text_println("bit dimmer.");
+        } else if (g_lamp_fuel == 15) {
+            text_println("The lamp is nearly");
+            text_println("out.");
+        } else if (g_lamp_fuel == 5) {
+            text_println("The lamp flickers");
+            text_println("desperately.");
         }
     }
+    /* Candle fuel - separate counter, thresholds at 20/10/5 moves */
+    if (g_obj_flags[OBJ_CANDLES] & OBJ_LIT) {
+        if (g_candle_fuel > 0) g_candle_fuel--;
+        if (g_candle_fuel == 0) {
+            g_obj_flags[OBJ_CANDLES] &= ~OBJ_LIT;
+            g_candles_dead = 1;
+            text_println("The candles have");
+            text_println("burned out.");
+        } else if (g_candle_fuel == 20) {
+            text_println("The candles are");
+            text_println("burning low.");
+        } else if (g_candle_fuel == 10) {
+            text_println("The candles won't");
+            text_println("last much longer.");
+        } else if (g_candle_fuel == 5) {
+            text_println("The candles are");
+            text_println("about to go out.");
+        }
+    }
+    /* Thief wanders each move */
+    thief_tick();
 }
 
 /* ---- TAKE ---- */
@@ -824,7 +1006,7 @@ static void do_drop(u8 obj) {
     sv = g_obj_score[obj];
     if (sv > 0 && g_player_room == ROOM_LIVING_ROOM
                && g_obj_target[obj] == OBJ_TROPHY_CASE) {
-        g_obj_loc[obj] = OBJ_TROPHY_CASE;
+        g_obj_loc[obj] = (u8)(NUM_ROOMS + OBJ_TROPHY_CASE);
         engine_add_score(sv);
         text_print("In the trophy case!");
         text_newline();
@@ -840,6 +1022,7 @@ static void do_drop(u8 obj) {
             sc[1] = '0' + s % 10;
             text_println(sc);
         }
+        check_win();
     }
     g_moves = g_moves + 1;
 }
@@ -868,13 +1051,31 @@ static void do_examine(u8 obj) {
         u8 f;
         f = 0;
         for (i = 0; i < NUM_OBJECTS; i++) {
-            if (OBJ_TROPHY_CASE < NUM_ROOMS) break;  /* safety */
-            if (g_obj_loc[i] != OBJ_TROPHY_CASE) continue;
+            if (g_obj_loc[i] != (u8)(NUM_ROOMS + OBJ_TROPHY_CASE)) continue;
             if (!f) { text_println("Inside:"); f = 1; }
             text_print("  ");
             text_println(g_obj_name[i]);
         }
         if (!f) text_println("It is empty.");
+    }
+    else if (g_obj_flags[obj] & OBJ_CONTAINER) {
+        /* Any other container: show contents if open, else note it's closed */
+        if (!(g_obj_flags[obj] & OBJ_OPEN)) {
+            text_println("It is closed.");
+        } else {
+            u8 i;
+            u8 f;
+            u8 encoded_loc;
+            f = 0;
+            encoded_loc = (u8)(NUM_ROOMS + obj);
+            for (i = 0; i < NUM_OBJECTS; i++) {
+                if (g_obj_loc[i] != encoded_loc) continue;
+                if (!f) { text_println("Inside:"); f = 1; }
+                text_print("  ");
+                text_println(g_obj_name[i]);
+            }
+            if (!f) text_println("It is empty.");
+        }
     }
     g_moves = g_moves + 1;
 }
@@ -897,10 +1098,12 @@ static void do_open(u8 obj) {
         u8 f;
         f = 0;
         text_println("Opened.");
-        /* Only list contents if obj has OBJ_CONTAINER flag */
-        if (g_obj_flags[obj] & OBJ_CONTAINER) {
+        /* List contents: items with loc = NUM_ROOMS + obj_idx */
+        {
+            u8 encoded_loc;
+            encoded_loc = (u8)(NUM_ROOMS + obj);
             for (i = 0; i < NUM_OBJECTS; i++) {
-                if (g_obj_loc[i] != obj) continue;
+                if (g_obj_loc[i] != encoded_loc) continue;
                 if (!f) { text_println("Inside:"); f = 1; }
                 text_print("  ");
                 text_println(g_obj_name[i]);
@@ -926,11 +1129,30 @@ static void do_read(u8 obj) {
     if (obj == OBJ_ADVERTISEMENT) {
         engine_print_obj_desc(obj);
     } else if (obj == OBJ_BOOK) {
-        text_println("Commandment #12592:");
-        text_println("Oh ye who go about");
-        text_println("saying 'Hello sailor'");
-        text_println("dost thou know thy");
-        text_println("sin before the gods?");
+        if (g_player_room == ROOM_ENTRANCE_TO_HADES && !g_ghosts_gone) {
+            if (g_bell_rung && (g_obj_flags[OBJ_CANDLES] & OBJ_LIT)) {
+                text_println("The spirits wail and");
+                text_println("vanish, exorcised!");
+                text_println("The way south is");
+                text_println("clear.");
+                g_ghosts_gone = 1;
+                g_obj_loc[OBJ_GHOSTS] = LOC_GONE;
+                engine_add_score(20);
+                text_println("Score +20");
+            } else {
+                text_println("You read the black");
+                text_println("book, but nothing");
+                text_println("happens. You sense");
+                text_println("you're missing a");
+                text_println("step of the ritual.");
+            }
+        } else {
+            text_println("Commandment #12592:");
+            text_println("Oh ye who go about");
+            text_println("saying 'Hello sailor'");
+            text_println("dost thou know thy");
+            text_println("sin before the gods?");
+        }
     } else if (obj == OBJ_MATCH) {
         text_println("Visit Beautiful");
         text_println("FCD#3!");
@@ -938,9 +1160,93 @@ static void do_read(u8 obj) {
         text_println("PLEASE READ BEFORE");
         text_println("OPERATING. Magic word");
         text_println("is ZORK.");
+    } else if (obj == OBJ_GUIDE) {
+        text_println("A tour guide to the");
+        text_println("Great Underground");
+        text_println("Empire, penned by the");
+        text_println("adventurer ULYSSES,");
+        text_println("who once blinded a");
+        text_println("cyclops to escape");
+        text_println("its lair. It notes");
+        text_println("that cyclopes still");
+        text_println("flee at the mere");
+        text_println("sound of his name.");
+        g_knows_word = 1;
     } else {
         text_println("Nothing to read.");
     }
+    g_moves = g_moves + 1;
+}
+
+/* ---- UNLOCK ---- */
+static void do_unlock(u8 obj) {
+    if (!obj_accessible(obj)) { text_println("Not here."); return; }
+    if (!(g_obj_flags[obj] & OBJ_LOCKED)) { text_println("Already unlocked."); return; }
+    if (obj == OBJ_GRATE) {
+        if (!player_has(OBJ_KEYS)) {
+            text_println("You don't have the");
+            text_println("key.");
+            return;
+        }
+        g_obj_flags[obj] &= ~OBJ_LOCKED;
+        text_println("You unlock the");
+        text_println("grating with the key.");
+    } else {
+        text_println("You can't unlock");
+        text_println("that.");
+    }
+    g_moves = g_moves + 1;
+}
+
+/* ---- WIND ---- */
+static void do_wind(u8 obj) {
+    if (obj != OBJ_CANARY || !player_has(OBJ_CANARY)) {
+        text_println("You can't wind that.");
+        return;
+    }
+    text_println("A songbird flies down");
+    text_println("from the trees and");
+    text_println("drops a brass bauble");
+    text_println("at your feet!");
+    g_obj_loc[OBJ_BAUBLE] = g_player_room;
+    g_moves = g_moves + 1;
+}
+
+/* ---- TURN (machine switch) ---- */
+static void do_turn_switch(u8 obj) {
+    u8 coal_loc;
+    if (obj != OBJ_MACHINE_SWITCH || g_player_room != ROOM_MACHINE_ROOM) {
+        text_println("Nothing happens.");
+        g_moves = g_moves + 1;
+        return;
+    }
+    if (g_obj_flags[OBJ_MACHINE] & OBJ_OPEN) {
+        text_println("The machine's lid is");
+        text_println("open. Close it first.");
+        g_moves = g_moves + 1;
+        return;
+    }
+    if (!player_has(OBJ_WRENCH)) {
+        text_println("You turn the switch");
+        text_println("with your bare hand");
+        text_println("and lose it! Ouch.");
+        text_println("(You need the wrench)");
+        g_moves = g_moves + 1;
+        return;
+    }
+    coal_loc = (u8)(NUM_ROOMS + OBJ_MACHINE);
+    if (g_obj_loc[OBJ_COAL] != coal_loc) {
+        text_println("The machine whirs but");
+        text_println("nothing happens.");
+        text_println("(It needs coal)");
+        g_moves = g_moves + 1;
+        return;
+    }
+    text_println("The machine grinds");
+    text_println("and rumbles. A large");
+    text_println("diamond appears!");
+    g_obj_loc[OBJ_COAL] = LOC_GONE;
+    g_obj_loc[OBJ_DIAMOND] = coal_loc;
     g_moves = g_moves + 1;
 }
 
@@ -949,7 +1255,8 @@ static void do_turn_on(u8 obj) {
     if (!player_has(obj)) { text_println("Not carrying it."); return; }
     if (!(g_obj_flags[obj] & OBJ_LIGHT)) { text_println("Doesn't turn on."); return; }
     if (g_obj_flags[obj] & OBJ_LIT) { text_println("Already on."); return; }
-    if (obj == OBJ_LAMP && g_lamp_fuel == 0) { text_println("Batteries dead."); return; }
+    if (obj == OBJ_LAMP && g_lamp_dead) { text_println("The lamp is burned"); text_println("out."); return; }
+    if (obj == OBJ_CANDLES && g_candles_dead) { text_println("The candles are"); text_println("burned out."); return; }
     g_obj_flags[obj] |= OBJ_LIT;
     text_println("On.");
     g_moves = g_moves + 1;
@@ -1046,6 +1353,8 @@ void engine_execute(u8 verb, u8 obj) {
                 } else {
                     text_println("The troll is dead.");
                 }
+            } else if (obj == OBJ_THIEF) {
+                thief_attack(OBJ_SWORD);
             } else {
                 text_println("Violence isn't the");
                 text_println("answer here.");
@@ -1053,7 +1362,21 @@ void engine_execute(u8 verb, u8 obj) {
             g_moves = g_moves + 1;
             break;
         case V_PUT:
-            do_drop(obj);
+            if (obj == OBJ_COAL && g_player_room == ROOM_MACHINE_ROOM
+                && player_has(OBJ_COAL)) {
+                if (g_obj_flags[OBJ_MACHINE] & OBJ_OPEN) {
+                    g_obj_loc[OBJ_COAL] = (u8)(NUM_ROOMS + OBJ_MACHINE);
+                    text_println("You put the coal in");
+                    text_println("the machine.");
+                    g_moves = g_moves + 1;
+                } else {
+                    text_println("The machine's lid");
+                    text_println("is closed.");
+                    g_moves = g_moves + 1;
+                }
+            } else {
+                do_drop(obj);
+            }
             break;
         case V_GO:
             if (obj >= DIR_NOUN_BASE) {
@@ -1079,6 +1402,17 @@ void engine_execute(u8 verb, u8 obj) {
                     text_println("The window is");
                     text_println("closed.");
                 }
+            } else if (obj == OBJ_INFLATED_BOAT
+                       && g_player_room == ROOM_DAM_BASE
+                       && player_has(OBJ_INFLATED_BOAT)) {
+                text_println("You board the boat");
+                text_println("and push off. The");
+                text_println("current carries you");
+                text_println("downstream.");
+                g_in_boat = 1;
+                g_player_room = ROOM_RIVER_1;
+                g_moves = g_moves + 1;
+                engine_describe_room(ROOM_RIVER_1, 0);
             } else {
                 text_println("There's nothing to");
                 text_println("enter here.");
@@ -1126,9 +1460,10 @@ void engine_execute(u8 verb, u8 obj) {
             if (obj == OBJ_ROPE && g_player_room == ROOM_CHASM_ROOM
                 && player_has(OBJ_ROPE)) {
                 g_obj_loc[OBJ_ROPE] = ROOM_CHASM_ROOM;
-                text_println("Rope tied to the");
-                text_println("railing. You can");
-                text_println("climb down now.");
+                g_rope_tied = 1;
+                text_println("You tie the rope to");
+                text_println("the railing. You");
+                text_println("can climb down!");
             } else {
                 text_println("You can't tie that");
                 text_println("there.");
@@ -1136,11 +1471,16 @@ void engine_execute(u8 verb, u8 obj) {
             g_moves = g_moves + 1;
             break;
         case V_WAVE:
-            if (obj == OBJ_SCEPTRE && g_player_room == ROOM_END_OF_RAINBOW) {
+            if (obj == OBJ_SCEPTRE && player_has(OBJ_SCEPTRE)
+                && (g_player_room == ROOM_END_OF_RAINBOW
+                    || g_player_room == ROOM_CANYON_BOTTOM)) {
                 text_println("You wave the");
                 text_println("sceptre. A rainbow");
                 text_println("bridge appears!");
-                g_room_flags[ROOM_ON_RAINBOW] |= ROOM_ABOVE;
+                g_rainbow_solid = 1;
+                /* Enable crossing from Aragain Falls */
+                text_println("You can now cross");
+                text_println("the rainbow.");
             } else {
                 text_println("Nothing happens.");
             }
@@ -1148,11 +1488,21 @@ void engine_execute(u8 verb, u8 obj) {
             break;
         case V_RING:
             if (obj == OBJ_BELL && player_has(OBJ_BELL)) {
-                text_println("You ring the bell.");
-                text_println("The spirits wail");
-                text_println("and the candles");
-                text_println("go out!");
-                g_obj_flags[OBJ_CANDLES] &= ~OBJ_LIT;
+                if (g_player_room == ROOM_ENTRANCE_TO_HADES) {
+                    text_println("The bell suddenly");
+                    text_println("becomes red hot!");
+                    text_println("You drop it.");
+                    g_obj_loc[OBJ_BELL] = LOC_GONE;
+                    g_obj_loc[OBJ_HOT_BELL] = g_player_room;
+                    g_bell_rung = 1;
+                    if (g_obj_flags[OBJ_CANDLES] & OBJ_LIT) {
+                        text_println("A gust blows the");
+                        text_println("candles out!");
+                        g_obj_flags[OBJ_CANDLES] &= ~OBJ_LIT;
+                    }
+                } else {
+                    text_println("Ding, dong.");
+                }
             } else {
                 text_println("Nothing to ring.");
             }
@@ -1162,9 +1512,16 @@ void engine_execute(u8 verb, u8 obj) {
             if (obj == OBJ_MATCH && player_has(OBJ_MATCH)) {
                 text_println("You light a match.");
             } else if (obj == OBJ_CANDLES && player_has(OBJ_CANDLES)) {
-                text_println("You light the");
-                text_println("candles.");
-                g_obj_flags[OBJ_CANDLES] |= OBJ_LIT | OBJ_LIGHT;
+                if (g_candles_dead) {
+                    text_println("The candles are");
+                    text_println("burned out.");
+                } else if (g_obj_flags[OBJ_CANDLES] & OBJ_LIT) {
+                    text_println("Already lit.");
+                } else {
+                    text_println("You light the");
+                    text_println("candles.");
+                    g_obj_flags[OBJ_CANDLES] |= OBJ_LIT | OBJ_LIGHT;
+                }
             } else {
                 text_println("You can't light");
                 text_println("that.");
@@ -1173,10 +1530,13 @@ void engine_execute(u8 verb, u8 obj) {
             break;
         case V_PRAY:
             if (g_player_room == ROOM_SOUTH_TEMPLE) {
-                text_println("You pray at the");
-                text_println("altar. The spirits");
-                text_println("are appeased.");
-                g_obj_loc[OBJ_GHOSTS] = LOC_GONE;
+                text_println("You feel a strange");
+                text_println("vertigo. You are");
+                text_println("outside again.");
+                g_player_room = ROOM_FOREST_1;
+                g_moves = g_moves + 1;
+                engine_describe_room(ROOM_FOREST_1, 0);
+                break;
             } else {
                 text_println("Nothing happens.");
             }
@@ -1194,14 +1554,20 @@ void engine_execute(u8 verb, u8 obj) {
             g_moves = g_moves + 1;
             break;
         case V_CROSS:
-            if (g_player_room == ROOM_ARAGAIN_FALLS) {
-                if (g_room_flags[ROOM_ON_RAINBOW] & ROOM_ABOVE) {
-                    g_player_room = ROOM_ON_RAINBOW;
+            if (g_player_room == ROOM_ARAGAIN_FALLS
+                || g_player_room == ROOM_ON_RAINBOW) {
+                if (g_rainbow_solid) {
+                    if (g_player_room == ROOM_ARAGAIN_FALLS) {
+                        g_player_room = ROOM_ON_RAINBOW;
+                    } else {
+                        g_player_room = ROOM_END_OF_RAINBOW;
+                    }
                     g_moves = g_moves + 1;
-                    engine_describe_room(ROOM_ON_RAINBOW, 0);
+                    engine_describe_room(g_player_room, 0);
                 } else {
                     text_println("The rainbow isn't");
-                    text_println("solid enough.");
+                    text_println("solid. Wave the");
+                    text_println("sceptre first.");
                 }
             } else {
                 text_println("Nothing to cross.");
@@ -1243,6 +1609,42 @@ void engine_execute(u8 verb, u8 obj) {
                 text_println("Nothing to raise.");
             }
             g_moves = g_moves + 1;
+            break;
+        case V_SAY:
+            /* SAY ULYSSES: only works once the guidebook has taught it */
+            if (g_player_room == ROOM_CYCLOPS_ROOM && g_cyclops_here) {
+                if (g_knows_word) {
+                    text_println("\"ULYSSES!\" you cry.");
+                    text_println("The cyclops, hearing");
+                    text_println("the name of his");
+                    text_println("ancient nemesis,");
+                    text_println("flees in terror!");
+                    g_cyclops_here = 0;
+                    engine_add_score(15);
+                    text_println("Score +15");
+                } else {
+                    text_println("You don't know what");
+                    text_println("to say.");
+                }
+                g_moves = g_moves + 1;
+            } else if (g_in_boat) {
+                text_println("You say the magic");
+                text_println("word. The boat surges");
+                text_println("downstream!");
+                do_go(DIR_DOWN);  /* do_go already advances g_moves */
+            } else {
+                text_println("Nothing happens.");
+                g_moves = g_moves + 1;
+            }
+            break;
+        case V_UNLOCK:
+            do_unlock(obj);
+            break;
+        case V_WIND:
+            do_wind(obj);
+            break;
+        case V_TURN:
+            do_turn_switch(obj);
             break;
         case V_QUIT:
             text_println("Thanks for playing!");
@@ -1291,7 +1693,17 @@ void engine_init(void) {
     g_cyclops_here = 1;
     g_score        = 0;
     g_moves        = 0;
-    g_lamp_fuel    = 200;
+    g_lamp_fuel    = 185;
+    g_lamp_dead    = 0;
+    g_candle_fuel  = 30;
+    g_candles_dead = 0;
+    g_in_boat      = 0;
+    g_bell_rung    = 0;
+    g_ghosts_gone  = 0;
+    g_won          = 0;
+    g_knows_word   = 0;
+    g_rope_tied    = 0;
+    g_rainbow_solid = 0;
     g_dead         = 0;
     for (i = 0; i < NUM_OBJECTS; i++) {
         g_obj_loc[i]   = g_obj_default_loc[i];
@@ -1300,6 +1712,32 @@ void engine_init(void) {
     for (i = 0; i < NUM_ROOMS; i++) {
         g_room_flags[i] = g_room_base_flags[i];
     }
+    /* Fix container contents encoding: loc = NUM_ROOMS + container_obj_idx */
+    /* This distinguishes "in room N" from "inside object N" */
+    g_obj_loc[ 10] = 160;  /* WATER inside BOTTLE(50) */
+    g_obj_loc[ 17] = 142;  /* LUNCH inside SANDWICH-BAG(32) */
+    g_obj_loc[ 21] = 216;  /* AXE inside TROLL(106) */
+    g_obj_loc[ 25] = 134;  /* BOOK inside ALTAR(24) */
+    g_obj_loc[ 27] = 162;  /* SCEPTRE inside COFFIN(52) */
+    g_obj_loc[ 32] = 140;  /* SANDWICH-BAG inside KITCHEN-TABLE(30) */
+    g_obj_loc[ 41] = 142;  /* GARLIC inside SANDWICH-BAG(32) */
+    g_obj_loc[ 50] = 140;  /* BOTTLE inside KITCHEN-TABLE(30) */
+    g_obj_loc[ 57] = 141;  /* KNIFE inside ATTIC-TABLE(31) */
+    g_obj_loc[ 62] = 194;  /* EMERALD inside BUOY(84) */
+    g_obj_loc[ 63] = 177;  /* ADVERTISEMENT inside MAILBOX(67) */
+    g_obj_loc[ 95] = 212;  /* LARGE-BAG inside THIEF(102) */
+    g_obj_loc[ 96] = 212;  /* STILETTO inside THIEF(102) */
+    g_obj_loc[100] = 148;  /* MAP inside TROPHY-CASE(38) */
+    g_obj_loc[101] = 176;  /* BOAT-LABEL inside INFLATED-BOAT(66) */
+    g_obj_loc[104] = 213;  /* TORCH inside PEDESTAL(103) */
+    g_obj_loc[109] = 218;  /* PUTTY inside TUBE(108) */
+    g_obj_loc[117] = 226;  /* EGG inside NEST(116) */
+    g_obj_loc[120] = 227;  /* CANARY inside EGG(117) */
+    g_obj_loc[121] = 228;  /* BROKEN-CANARY inside BROKEN-EGG(118) */
+
+    /* Init thief NPC */
+    g_thief_alive = 1;
+    thief_init();
     /* Kitchen and Living Room lit (windows) */
     g_room_flags[ROOM_KITCHEN]      |= ROOM_ABOVE;
     g_room_flags[ROOM_LIVING_ROOM]  |= ROOM_ABOVE;
